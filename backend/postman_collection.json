@@ -1,0 +1,218 @@
+{
+  "info": {
+    "name": "Project Management API",
+    "description": "Complete API collection for project management backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080/api"
+    },
+    {
+      "key": "projectId",
+      "value": ""
+    },
+    {
+      "key": "issueId",
+      "value": ""
+    },
+    {
+      "key": "sprintId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Projects",
+      "item": [
+        {
+          "name": "Create Project",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": "{{baseUrl}}/projects",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Backend Services\",\n  \"key\": \"BACKEND\",\n  \"description\": \"Core backend infrastructure\",\n  \"custom_fields\": [\n    {\n      \"name\": \"severity\",\n      \"type\": \"dropdown\",\n      \"options\": [\"low\", \"medium\", \"high\"]\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "List Projects",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/projects"
+          }
+        },
+        {
+          "name": "Get Project",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/projects/{{projectId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Issues",
+      "item": [
+        {
+          "name": "Create Issue",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": "{{baseUrl}}/projects/{{projectId}}/issues",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"story\",\n  \"title\": \"Add OAuth authentication\",\n  \"description\": \"Implement OAuth 2.0 login flow\",\n  \"priority\": \"high\",\n  \"story_points\": 5,\n  \"labels\": [\"auth\", \"backend\"]\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Board",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/projects/{{projectId}}/board"
+          }
+        },
+        {
+          "name": "Get Issue",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/issues/{{issueId}}"
+          }
+        },
+        {
+          "name": "Update Issue",
+          "request": {
+            "method": "PATCH",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": "{{baseUrl}}/issues/{{issueId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated title\",\n  \"priority\": \"highest\",\n  \"version\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "Transition Issue",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": "{{baseUrl}}/issues/{{issueId}}/transitions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to_status\": \"in_progress\",\n  \"version\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "Watch Issue",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/issues/{{issueId}}/watch"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sprints",
+      "item": [
+        {
+          "name": "Create Sprint",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": "{{baseUrl}}/sprints",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_id\": \"{{projectId}}\",\n  \"name\": \"Sprint 1\",\n  \"goal\": \"Complete authentication module\",\n  \"start_date\": \"2024-01-15T00:00:00Z\",\n  \"end_date\": \"2024-01-29T23:59:59Z\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List Sprints",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/projects/{{projectId}}/sprints"
+          }
+        },
+        {
+          "name": "Start Sprint",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/sprints/{{sprintId}}/start"
+          }
+        },
+        {
+          "name": "Complete Sprint",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": "{{baseUrl}}/sprints/{{sprintId}}/complete",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"carry_over_issues\": []\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Comments",
+      "item": [
+        {
+          "name": "Add Comment",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": "{{baseUrl}}/issues/{{issueId}}/comments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Working on this @john\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List Comments",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/issues/{{issueId}}/comments"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Activity",
+      "item": [
+        {
+          "name": "Project Activity",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/projects/{{projectId}}/activity?limit=50&skip=0"
+          }
+        },
+        {
+          "name": "Issue Activity",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/issues/{{issueId}}/activity"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Search",
+      "item": [
+        {
+          "name": "Search Issues",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/search?q=authentication&status=in_progress&priority=high"
+          }
+        }
+      ]
+    }
+  ]
+}
