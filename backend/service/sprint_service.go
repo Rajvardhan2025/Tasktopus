@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/yourusername/project-management/models"
@@ -29,17 +30,39 @@ func NewSprintService(
 }
 
 func (s *SprintService) Create(ctx context.Context, req *models.CreateSprintRequest) (*models.Sprint, error) {
+	// Validate project exists
+	if req.ProjectID == "" {
+		return nil, fmt.Errorf("project_id is required")
+	}
+
+	// If no dates provided, set defaults
+	startDate := req.StartDate
+	endDate := req.EndDate
+
+	if startDate == nil {
+		now := time.Now()
+		startDate = &now
+	}
+
+	if endDate == nil && startDate != nil {
+		futureDate := startDate.AddDate(0, 0, 14) // Default 2-week sprint
+		endDate = &futureDate
+	}
+
 	sprint := &models.Sprint{
-		BaseModel: models.BaseModel{ID: uuid.New().String()},
-		ProjectID: req.ProjectID,
-		Name:      req.Name,
-		Goal:      req.Goal,
-		StartDate: req.StartDate,
-		EndDate:   req.EndDate,
+		BaseModel:  models.BaseModel{ID: uuid.New().String()},
+		ProjectID:  req.ProjectID,
+		Name:       req.Name,
+		Goal:       req.Goal,
+		StartDate:  startDate,
+		EndDate:    endDate,
+		Status:     models.SprintStatusFuture,
+		IsDefault:  false,
+		IssueCount: 0,
 	}
 
 	if err := s.sprintStore.Create(ctx, sprint); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create sprint: %w", err)
 	}
 
 	return sprint, nil
@@ -48,17 +71,27 @@ func (s *SprintService) Create(ctx context.Context, req *models.CreateSprintRequ
 func (s *SprintService) Start(ctx context.Context, sprintID, userID string) (*models.Sprint, error) {
 	sprint, err := s.sprintStore.FindByID(ctx, sprintID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("sprint not found: %w", err)
 	}
 
-	if sprint.Status != models.SprintStatusPlanned {
-		return nil, fmt.Errorf("sprint is already started or completed")
+	if sprint.Status != models.SprintStatusFuture {
+		return nil, fmt.Errorf("only future sprints can be started, current status: %s", sprint.Status)
 	}
 
-	// Calculate total points
+	// Check if another sprint is already active
+	activeSprints, err := s.sprintStore.FindByProject(ctx, sprint.ProjectID)
+	if err == nil {
+		for _, s := range activeSprints {
+			if s.Status == models.SprintStatusActive {
+				return nil, fmt.Errorf("another sprint is already active: %s", s.Name)
+			}
+		}
+	}
+
+	// Calculate total points and issue count
 	issues, err := s.issueStore.FindBySprint(ctx, sprintID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch sprint issues: %w", err)
 	}
 
 	totalPoints := 0
@@ -66,13 +99,17 @@ func (s *SprintService) Start(ctx context.Context, sprintID, userID string) (*mo
 		totalPoints += issue.StoryPoints
 	}
 
+	now := time.Now()
 	update := bson.M{
 		"status":       models.SprintStatusActive,
 		"total_points": totalPoints,
+		"issue_count":  len(issues),
+		"start_date":   &now,
+		"updated_at":   &now,
 	}
 
 	if err := s.sprintStore.Update(ctx, sprintID, update); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to update sprint: %w", err)
 	}
 
 	// Log activity
@@ -81,42 +118,49 @@ func (s *SprintService) Start(ctx context.Context, sprintID, userID string) (*mo
 		ProjectID: sprint.ProjectID,
 		UserID:    userID,
 		Action:    models.ActivitySprintStarted,
-		Changes:   map[string]interface{}{"sprint_id": sprintID, "sprint_name": sprint.Name},
+		Changes: map[string]interface{}{
+			"sprint_id":   sprintID,
+			"sprint_name": sprint.Name,
+			"status":      models.SprintStatusActive,
+		},
 	}
-	s.activityStore.Create(ctx, activity)
+	_ = s.activityStore.Create(ctx, activity)
 
-	return s.sprintStore.FindByID(ctx, sprintID)
+	updatedSprint, _ := s.sprintStore.FindByID(ctx, sprintID)
+	return updatedSprint, nil
 }
 
-func (s *SprintService) Complete(ctx context.Context, sprintID string, req *models.CompleteSprintRequest, userID string) (*models.Sprint, error) {
+func (s *SprintService) Close(ctx context.Context, sprintID string, req *models.CloseSprintRequest, userID string) (*models.Sprint, error) {
 	sprint, err := s.sprintStore.FindByID(ctx, sprintID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("sprint not found: %w", err)
 	}
 
 	if sprint.Status != models.SprintStatusActive {
-		return nil, fmt.Errorf("sprint is not active")
+		return nil, fmt.Errorf("only active sprints can be closed, current status: %s", sprint.Status)
 	}
 
 	// Get all issues in sprint
 	issues, err := s.issueStore.FindBySprint(ctx, sprintID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch sprint issues: %w", err)
 	}
 
-	// Calculate completed points
+	// Calculate completed points and issue counts
 	completedPoints := 0
+	completedIssueCount := 0
 	incompleteIssues := []string{}
 
 	for _, issue := range issues {
 		if issue.Status == "done" {
 			completedPoints += issue.StoryPoints
+			completedIssueCount++
 		} else {
 			incompleteIssues = append(incompleteIssues, issue.ID)
 		}
 	}
 
-	// Handle carry-over
+	// Handle carry-over - move non-carried issues to backlog
 	carryOverMap := make(map[string]bool)
 	for _, issueID := range req.CarryOverIssues {
 		carryOverMap[issueID] = true
@@ -125,18 +169,31 @@ func (s *SprintService) Complete(ctx context.Context, sprintID string, req *mode
 	for _, issueID := range incompleteIssues {
 		if !carryOverMap[issueID] {
 			// Remove from sprint (move to backlog)
-			s.issueStore.UpdateWithVersion(ctx, issueID, 0, bson.M{"sprint_id": ""})
+			_ = s.issueStore.UpdateWithVersion(ctx, issueID, 0, bson.M{"sprint_id": ""})
 		}
 	}
 
-	// Update sprint
+	// Calculate velocity (completed points / sprint duration)
+	velocity := 0
+	if sprint.StartDate != nil && sprint.EndDate != nil {
+		durationDays := sprint.EndDate.Sub(*sprint.StartDate).Hours() / 24
+		if durationDays > 0 {
+			velocity = int(float64(completedPoints) / durationDays * 7) // Velocity per week
+		}
+	}
+
+	now := time.Now()
 	update := bson.M{
-		"status":           models.SprintStatusCompleted,
-		"completed_points": completedPoints,
+		"status":               models.SprintStatusClosed,
+		"completed_points":     completedPoints,
+		"complete_issue_count": completedIssueCount,
+		"velocity":             velocity,
+		"end_date":             &now,
+		"updated_at":           &now,
 	}
 
 	if err := s.sprintStore.Update(ctx, sprintID, update); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to update sprint: %w", err)
 	}
 
 	// Log activity
@@ -148,19 +205,38 @@ func (s *SprintService) Complete(ctx context.Context, sprintID string, req *mode
 		Changes: map[string]interface{}{
 			"sprint_id":        sprintID,
 			"sprint_name":      sprint.Name,
+			"status":           models.SprintStatusClosed,
 			"completed_points": completedPoints,
 			"total_points":     sprint.TotalPoints,
+			"completed_issues": completedIssueCount,
+			"total_issues":     len(issues),
+			"velocity":         velocity,
+			"carry_over_count": len(req.CarryOverIssues),
 		},
 	}
-	s.activityStore.Create(ctx, activity)
+	_ = s.activityStore.Create(ctx, activity)
 
-	return s.sprintStore.FindByID(ctx, sprintID)
+	updatedSprint, _ := s.sprintStore.FindByID(ctx, sprintID)
+	return updatedSprint, nil
+}
+
+// Backward compatibility - alias Complete to Close
+func (s *SprintService) Complete(ctx context.Context, sprintID string, req *models.CloseSprintRequest, userID string) (*models.Sprint, error) {
+	return s.Close(ctx, sprintID, req, userID)
 }
 
 func (s *SprintService) GetByID(ctx context.Context, sprintID string) (*models.Sprint, error) {
-	return s.sprintStore.FindByID(ctx, sprintID)
+	sprint, err := s.sprintStore.FindByID(ctx, sprintID)
+	if err != nil {
+		return nil, fmt.Errorf("sprint not found: %w", err)
+	}
+	return sprint, nil
 }
 
 func (s *SprintService) GetByProject(ctx context.Context, projectID string) ([]*models.Sprint, error) {
-	return s.sprintStore.FindByProject(ctx, projectID)
+	sprints, err := s.sprintStore.FindByProject(ctx, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch sprints: %w", err)
+	}
+	return sprints, nil
 }

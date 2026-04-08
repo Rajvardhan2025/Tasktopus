@@ -53,11 +53,15 @@ export interface Sprint {
   project_id: string;
   name: string;
   goal: string;
-  start_date: string;
-  end_date: string;
-  status: 'planned' | 'active' | 'completed';
+  start_date?: string;
+  end_date?: string;
+  status: 'future' | 'active' | 'closed';
   completed_points: number;
   total_points: number;
+  velocity: number;
+  is_default: boolean;
+  issue_count: number;
+  complete_issue_count: number;
   created_at: string;
   updated_at: string;
 }
@@ -95,11 +99,11 @@ export const projectsApi = {
 export const issuesApi = {
   list: (projectId: string) => api.get<{ data: { issues: Issue[] } }>(`/projects/${projectId}/board`),
   get: (id: string) => api.get<{ data: Issue }>(`/issues/${id}`),
-  create: (projectId: string, data: Partial<Issue>) => 
+  create: (projectId: string, data: Partial<Issue>) =>
     api.post<{ data: Issue }>(`/projects/${projectId}/issues`, data),
-  update: (id: string, data: Partial<Issue> & { version: number }) => 
+  update: (id: string, data: Partial<Issue> & { version: number }) =>
     api.patch<{ data: Issue }>(`/issues/${id}`, data),
-  transition: (id: string, toStatus: string, version: number) => 
+  transition: (id: string, toStatus: string, version: number) =>
     api.post<{ data: Issue }>(`/issues/${id}/transitions`, { to_status: toStatus, version }),
   watch: (id: string) => api.post(`/issues/${id}/watch`),
   unwatch: (id: string) => api.delete(`/issues/${id}/watch`),
@@ -110,23 +114,23 @@ export const sprintsApi = {
   get: (id: string) => api.get<{ data: Sprint }>(`/sprints/${id}`),
   create: (data: Partial<Sprint>) => api.post<{ data: Sprint }>('/sprints', data),
   start: (id: string) => api.post<{ data: Sprint }>(`/sprints/${id}/start`),
-  complete: (id: string, carryOverIssues: string[]) => 
+  complete: (id: string, carryOverIssues: string[]) =>
     api.post<{ data: Sprint }>(`/sprints/${id}/complete`, { carry_over_issues: carryOverIssues }),
 };
 
 export const commentsApi = {
   list: (issueId: string) => api.get<{ data: Comment[] }>(`/issues/${issueId}/comments`),
-  create: (issueId: string, content: string, parentId?: string) => 
+  create: (issueId: string, content: string, parentId?: string) =>
     api.post<{ data: Comment }>(`/issues/${issueId}/comments`, { content, parent_id: parentId }),
-  update: (id: string, content: string) => 
+  update: (id: string, content: string) =>
     api.patch<{ data: Comment }>(`/comments/${id}`, { content }),
   delete: (id: string) => api.delete(`/comments/${id}`),
 };
 
 export const activityApi = {
-  project: (projectId: string, limit = 50, skip = 0) => 
+  project: (projectId: string, limit = 50, skip = 0) =>
     api.get<{ data: Activity[] }>(`/projects/${projectId}/activity?limit=${limit}&skip=${skip}`),
-  issue: (issueId: string) => 
+  issue: (issueId: string) =>
     api.get<{ data: Activity[] }>(`/issues/${issueId}/activity`),
 };
 

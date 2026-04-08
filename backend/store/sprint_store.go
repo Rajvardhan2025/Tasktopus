@@ -22,7 +22,9 @@ func NewSprintStore(db *mongo.Database) *SprintStore {
 func (s *SprintStore) Create(ctx context.Context, sprint *models.Sprint) error {
 	sprint.CreatedAt = time.Now()
 	sprint.UpdatedAt = time.Now()
-	sprint.Status = models.SprintStatusPlanned
+	if sprint.Status == "" {
+		sprint.Status = models.SprintStatusFuture
+	}
 	_, err := s.collection.InsertOne(ctx, sprint)
 	return err
 }
