@@ -1,10 +1,10 @@
 package config
 
 import (
-	"log"
+	"os"
+	"strconv"
+	"strings"
 	"time"
-
-	"github.com/spf13/viper"
 )
 
 type Config struct {
@@ -40,45 +40,84 @@ type WebSocketConfig struct {
 }
 
 func Load() *Config {
-	viper.SetConfigFile(".env")
-	viper.AutomaticEnv()
-
-	if err := viper.ReadInConfig(); err != nil {
-		log.Printf("Warning: .env file not found, using environment variables")
-	}
-
-	viper.SetDefault("PORT", "8080")
-	viper.SetDefault("ENV", "development")
-	viper.SetDefault("MONGO_URI", "mongodb://localhost:27017")
-	viper.SetDefault("MONGO_DATABASE", "project_management")
-	viper.SetDefault("JWT_EXPIRY", "24h")
-	viper.SetDefault("WS_READ_BUFFER_SIZE", 1024)
-	viper.SetDefault("WS_WRITE_BUFFER_SIZE", 1024)
-
-	expiry, err := time.ParseDuration(viper.GetString("JWT_EXPIRY"))
-	if err != nil {
-		expiry = 24 * time.Hour
-	}
+	expiry := getEnvDuration("JWT_EXPIRY", 24*time.Hour)
 
 	return &Config{
 		Server: ServerConfig{
-			Port: viper.GetString("PORT"),
-			Env:  viper.GetString("ENV"),
+			Port: getEnv("PORT", "8080"),
+			Env:  getEnv("ENV", "development"),
 		},
 		MongoDB: MongoDBConfig{
-			URI:      viper.GetString("MONGO_URI"),
-			Database: viper.GetString("MONGO_DATABASE"),
+			URI:      getEnv("MONGO_URI", "mongodb://localhost:27017"),
+			Database: getEnv("MONGO_DATABASE", "project_management"),
 		},
 		JWT: JWTConfig{
-			Secret: viper.GetString("JWT_SECRET"),
+			Secret: os.Getenv("JWT_SECRET"),
 			Expiry: expiry,
 		},
 		CORS: CORSConfig{
-			Origins: viper.GetStringSlice("CORS_ORIGINS"),
+			Origins: getEnvStringSlice("CORS_ORIGINS"),
 		},
 		WebSocket: WebSocketConfig{
-			ReadBufferSize:  viper.GetInt("WS_READ_BUFFER_SIZE"),
-			WriteBufferSize: viper.GetInt("WS_WRITE_BUFFER_SIZE"),
+			ReadBufferSize:  getEnvInt("WS_READ_BUFFER_SIZE", 1024),
+			WriteBufferSize: getEnvInt("WS_WRITE_BUFFER_SIZE", 1024),
 		},
 	}
+}
+
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+func getEnvInt(key string, defaultValue int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return defaultValue
+	}
+
+	return parsed
+}
+
+func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	parsed, err := time.ParseDuration(value)
+	if err != nil {
+		return defaultValue
+	}
+
+	return parsed
+}
+
+func getEnvStringSlice(key string) []string {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return nil
+	}
+
+	parts := strings.Split(value, ",")
+	origins := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			origins = append(origins, trimmed)
+		}
+	}
+
+	if len(origins) == 0 {
+		return nil
+	}
+
+	return origins
 }
