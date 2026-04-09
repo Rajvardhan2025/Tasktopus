@@ -79,14 +79,6 @@ export function Landing() {
                   Get Started
                   <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
-                <Button 
-                  size="lg" 
-                  variant="outline"
-                  onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
-                  className="text-lg px-8 py-6"
-                >
-                  Learn More
-                </Button>
               </div>
 
               <div className="flex items-center gap-8 pt-4">
@@ -142,76 +134,10 @@ export function Landing() {
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="py-20 md:py-32">
-        <div className="container mx-auto px-4">
-          <div className="text-center max-w-3xl mx-auto mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4">
-              Everything You Need
-            </h2>
-            <p className="text-xl text-muted-foreground">
-              Powerful features designed to help your team work smarter, not harder
-            </p>
-          </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {features.map((feature, index) => (
-              <Card 
-                key={feature.title}
-                className="group hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer"
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                <CardContent className="p-6">
-                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
-                    <feature.icon className="w-6 h-6 text-primary" />
-                  </div>
-                  <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
-                  <p className="text-muted-foreground">{feature.description}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
 
-      {/* CTA Section */}
-      <section className="py-20 md:py-32 bg-gradient-to-br from-primary/10 via-background to-secondary/10">
-        <div className="container mx-auto px-4">
-          <Card className="max-w-4xl mx-auto border-2">
-            <CardContent className="p-12 text-center">
-              <h2 className="text-4xl md:text-5xl font-bold mb-4">
-                Ready to Get Started?
-              </h2>
-              <p className="text-xl text-muted-foreground mb-8">
-                Join teams who are already managing their projects more efficiently
-              </p>
-              <Button 
-                size="lg"
-                onClick={() => navigate('/projects')}
-                className="text-lg px-8 py-6 group"
-              >
-                Start Your First Project
-                <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
 
-      {/* Footer */}
-      <footer className="border-t py-8">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <LayoutDashboard className="w-5 h-5" />
-              <span className="font-semibold">Project Management</span>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              © 2024 Project Management. Built with ❤️ for productive teams.
-            </p>
-          </div>
-        </div>
-      </footer>
+      
     </div>
   );
 }
