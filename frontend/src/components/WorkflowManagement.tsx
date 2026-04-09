@@ -172,53 +172,6 @@ export function WorkflowManagement({ projectId }: WorkflowManagementProps) {
           ))}
         </div>
       </div>
-
-      {/* Workflow Rules Summary */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Workflow Rules Summary</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3 text-sm">
-            <div className="flex items-start gap-2">
-              <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
-              <div>
-                <div className="font-medium">Status Columns</div>
-                <div className="text-muted-foreground">
-                  {workflow.statuses.length} configurable status columns
-                </div>
-              </div>
-            </div>
-            <div className="flex items-start gap-2">
-              <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
-              <div>
-                <div className="font-medium">Transition Rules</div>
-                <div className="text-muted-foreground">
-                  {workflow.transitions.length} defined transitions with validation
-                </div>
-              </div>
-            </div>
-            <div className="flex items-start gap-2">
-              <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
-              <div>
-                <div className="font-medium">Validation Hooks</div>
-                <div className="text-muted-foreground">
-                  Conditions prevent invalid transitions (e.g., missing required fields)
-                </div>
-              </div>
-            </div>
-            <div className="flex items-start gap-2">
-              <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
-              <div>
-                <div className="font-medium">Automatic Actions</div>
-                <div className="text-muted-foreground">
-                  Actions execute automatically on status changes (e.g., notifications)
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

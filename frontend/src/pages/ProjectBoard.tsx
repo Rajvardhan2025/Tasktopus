@@ -95,19 +95,6 @@ export function ProjectBoard() {
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-3xl font-bold">{project.name}</h1>
             <Badge variant="outline" className="font-mono">{project.key}</Badge>
-            <Badge variant={isConnected ? 'default' : 'secondary'} className="gap-1">
-              {isConnected ? (
-                <>
-                  <Wifi className="w-3 h-3" />
-                  <span className="hidden sm:inline">Live</span>
-                </>
-              ) : (
-                <>
-                  <WifiOff className="w-3 h-3" />
-                  <span className="hidden sm:inline">Offline</span>
-                </>
-              )}
-            </Badge>
           </div>
           {project.description && (
             <p className="text-muted-foreground mt-2">{project.description}</p>
