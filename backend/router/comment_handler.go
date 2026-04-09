@@ -47,6 +47,26 @@ func (h *CommentHandler) Create(c *fiber.Ctx) error {
 		return utils.InternalError(c, err.Error())
 	}
 
+	issue, err := h.provider.IssueStore.FindByID(c.Context(), issueID)
+	if err == nil {
+		_ = h.provider.ActivityStore.Create(c.Context(), &models.Activity{
+			ID:        uuid.New().String(),
+			ProjectID: issue.ProjectID,
+			IssueID:   issueID,
+			UserID:    userID,
+			Action:    models.ActivityCommentAdded,
+			Changes: map[string]interface{}{
+				"comment_id": comment.ID,
+			},
+		})
+
+		h.provider.WebSocketService.BroadcastToProject(issue.ProjectID, models.WSEvent{
+			Type:      models.WSEventCommentAdded,
+			ProjectID: issue.ProjectID,
+			Data:      comment,
+		})
+	}
+
 	// Notify mentioned users
 	for _, mentionedUserID := range mentions {
 		h.provider.NotificationService.NotifyMention(c.Context(), mentionedUserID, issueID, userID)
@@ -68,6 +88,7 @@ func (h *CommentHandler) List(c *fiber.Ctx) error {
 
 func (h *CommentHandler) Update(c *fiber.Ctx) error {
 	commentID := c.Params("id")
+	userID := c.Locals("userID").(string)
 
 	var req models.UpdateCommentRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -78,14 +99,50 @@ func (h *CommentHandler) Update(c *fiber.Ctx) error {
 		return utils.InternalError(c, err.Error())
 	}
 
+	comment, err := h.provider.CommentStore.FindByID(c.Context(), commentID)
+	if err == nil {
+		issue, issueErr := h.provider.IssueStore.FindByID(c.Context(), comment.IssueID)
+		if issueErr == nil {
+			_ = h.provider.ActivityStore.Create(c.Context(), &models.Activity{
+				ID:        uuid.New().String(),
+				ProjectID: issue.ProjectID,
+				IssueID:   comment.IssueID,
+				UserID:    userID,
+				Action:    models.ActivityCommentUpdated,
+				Changes: map[string]interface{}{
+					"comment_id": commentID,
+				},
+			})
+		}
+	}
+
 	return utils.SuccessResponse(c, fiber.Map{"message": "Comment updated"})
 }
 
 func (h *CommentHandler) Delete(c *fiber.Ctx) error {
 	commentID := c.Params("id")
+	userID := c.Locals("userID").(string)
+
+	comment, _ := h.provider.CommentStore.FindByID(c.Context(), commentID)
 
 	if err := h.provider.CommentStore.Delete(c.Context(), commentID); err != nil {
 		return utils.InternalError(c, err.Error())
+	}
+
+	if comment != nil {
+		issue, issueErr := h.provider.IssueStore.FindByID(c.Context(), comment.IssueID)
+		if issueErr == nil {
+			_ = h.provider.ActivityStore.Create(c.Context(), &models.Activity{
+				ID:        uuid.New().String(),
+				ProjectID: issue.ProjectID,
+				IssueID:   comment.IssueID,
+				UserID:    userID,
+				Action:    models.ActivityCommentDeleted,
+				Changes: map[string]interface{}{
+					"comment_id": commentID,
+				},
+			})
+		}
 	}
 
 	return utils.SuccessResponse(c, fiber.Map{"message": "Comment deleted"})

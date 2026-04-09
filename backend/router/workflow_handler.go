@@ -71,6 +71,9 @@ func (h *WorkflowHandler) CreateDefault(c *fiber.Ctx) error {
 				},
 				Actions: []models.Action{
 					{
+						Type: "assign_reviewer",
+					},
+					{
 						Type: "notify",
 						Params: map[string]interface{}{
 							"message": "Issue moved to review",
@@ -87,12 +90,6 @@ func (h *WorkflowHandler) CreateDefault(c *fiber.Ctx) error {
 			{
 				From:       "in_review",
 				To:         "in_progress",
-				Conditions: []models.Condition{},
-				Actions:    []models.Action{},
-			},
-			{
-				From:       "to_do",
-				To:         "done",
 				Conditions: []models.Condition{},
 				Actions:    []models.Action{},
 			},

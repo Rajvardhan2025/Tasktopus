@@ -57,17 +57,18 @@ func New(cfg *config.Config) (*Provider, error) {
 	// Initialize services
 	wsService := service.NewWebSocketService()
 	notificationService := service.NewNotificationService(notificationStore)
-	workflowService := service.NewWorkflowService(workflowStore)
+	workflowService := service.NewWorkflowService(workflowStore, issueStore, notificationService)
 	issueService := service.NewIssueService(
 		issueStore,
+		userStore,
 		projectStore,
 		activityStore,
 		workflowService,
 		notificationService,
 		wsService,
 	)
-	sprintService := service.NewSprintService(sprintStore, issueStore, activityStore)
-	searchService := service.NewSearchService(issueStore)
+	sprintService := service.NewSprintService(sprintStore, issueStore, activityStore, wsService)
+	searchService := service.NewSearchService(issueStore, commentStore)
 
 	return &Provider{
 		Config:              cfg,

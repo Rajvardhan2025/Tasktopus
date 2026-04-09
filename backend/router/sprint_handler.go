@@ -75,9 +75,16 @@ func (h *SprintHandler) Update(c *fiber.Ctx) error {
 		return utils.ValidationError(c, "Invalid request body")
 	}
 
-	// Implementation would call service.Update()
-	// For now, return a placeholder
-	return utils.SuccessResponse(c, fiber.Map{"message": "Sprint updated successfully"})
+	if err := utils.ValidateStruct(&req); err != nil {
+		return utils.ValidationError(c, err.Error())
+	}
+
+	sprint, err := h.provider.SprintService.Update(c.Context(), sprintID, &req)
+	if err != nil {
+		return utils.InternalError(c, err.Error())
+	}
+
+	return utils.SuccessResponse(c, sprint)
 }
 
 func (h *SprintHandler) Start(c *fiber.Ctx) error {

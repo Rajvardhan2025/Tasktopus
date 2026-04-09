@@ -9,7 +9,12 @@ import (
 	"github.com/yourusername/project-management/provider"
 	"github.com/yourusername/project-management/utils"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 )
+
+type ProjectMemberRequest struct {
+	UserID string `json:"user_id" validate:"required"`
+}
 
 type ProjectHandler struct {
 	provider *provider.Provider
@@ -74,6 +79,9 @@ func (h *ProjectHandler) Create(c *fiber.Ctx) error {
 				},
 				Actions: []models.Action{
 					{
+						Type: "assign_reviewer",
+					},
+					{
 						Type: "notify",
 						Params: map[string]interface{}{
 							"message": "Issue moved to review",
@@ -90,12 +98,6 @@ func (h *ProjectHandler) Create(c *fiber.Ctx) error {
 			{
 				From:       "in_review",
 				To:         "in_progress",
-				Conditions: []models.Condition{},
-				Actions:    []models.Action{},
-			},
-			{
-				From:       "to_do",
-				To:         "done",
 				Conditions: []models.Condition{},
 				Actions:    []models.Action{},
 			},
@@ -167,4 +169,69 @@ func (h *ProjectHandler) Delete(c *fiber.Ctx) error {
 	}
 
 	return utils.SuccessResponse(c, fiber.Map{"message": "Project deleted"})
+}
+
+func (h *ProjectHandler) GetMembers(c *fiber.Ctx) error {
+	projectID := c.Params("id")
+
+	project, err := h.provider.ProjectStore.FindByID(c.Context(), projectID)
+	if err != nil {
+		return utils.NotFoundError(c, "Project")
+	}
+
+	if len(project.Members) == 0 {
+		return utils.SuccessResponse(c, []models.User{})
+	}
+
+	users, err := h.provider.UserStore.FindByIDs(c.Context(), project.Members)
+	if err != nil {
+		return utils.InternalError(c, err.Error())
+	}
+
+	return utils.SuccessResponse(c, users)
+}
+
+func (h *ProjectHandler) AddMember(c *fiber.Ctx) error {
+	projectID := c.Params("id")
+
+	var req ProjectMemberRequest
+	if err := c.BodyParser(&req); err != nil {
+		return utils.ValidationError(c, "Invalid request body")
+	}
+
+	if err := utils.ValidateStruct(&req); err != nil {
+		return utils.ValidationError(c, err.Error())
+	}
+
+	if _, err := h.provider.ProjectStore.FindByID(c.Context(), projectID); err != nil {
+		return utils.NotFoundError(c, "Project")
+	}
+
+	if _, err := h.provider.UserStore.FindByID(c.Context(), req.UserID); err != nil {
+		if err == mongo.ErrNoDocuments {
+			return utils.NotFoundError(c, "User")
+		}
+		return utils.InternalError(c, err.Error())
+	}
+
+	if err := h.provider.ProjectStore.AddMember(c.Context(), projectID, req.UserID); err != nil {
+		return utils.InternalError(c, err.Error())
+	}
+
+	return utils.SuccessResponse(c, fiber.Map{"message": "Member added"})
+}
+
+func (h *ProjectHandler) RemoveMember(c *fiber.Ctx) error {
+	projectID := c.Params("id")
+	userID := c.Params("userId")
+
+	if userID == "" {
+		return utils.ValidationError(c, "User ID is required")
+	}
+
+	if err := h.provider.ProjectStore.RemoveMember(c.Context(), projectID, userID); err != nil {
+		return utils.InternalError(c, err.Error())
+	}
+
+	return utils.SuccessResponse(c, fiber.Map{"message": "Member removed"})
 }

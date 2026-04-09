@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { projectsApi, Issue } from '@/lib/api';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { projectsApi } from '@/lib/api';
+import type { Issue } from '@/lib/api';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { SprintManagement } from '@/components/SprintManagement';
 import { WorkflowManagement } from '@/components/WorkflowManagement';
 import { SearchBar } from '@/components/SearchBar';
+import { ProjectMembersManager } from '@/components/ProjectMembersManager';
 import { IssueDialog } from '@/components/IssueDialog';
 import { useWebSocket } from '@/lib/websocket';
 import { Badge } from '@/components/ui/badge';
@@ -16,14 +18,35 @@ export function ProjectBoard() {
   const { projectId } = useParams<{ projectId: string }>();
   const [activeView, setActiveView] = useState<'board' | 'sprints' | 'workflow'>('board');
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
-  
+
   const { data, isLoading } = useQuery({
     queryKey: ['project', projectId],
     queryFn: () => projectsApi.get(projectId!),
     enabled: !!projectId,
   });
 
-  const { isConnected } = useWebSocket(projectId || null);
+  const { isConnected, lastEvent } = useWebSocket(projectId || null);
+
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!lastEvent || !projectId) return;
+
+    if (
+      lastEvent.type === 'issue_created' ||
+      lastEvent.type === 'issue_updated' ||
+      lastEvent.type === 'issue_moved' ||
+      lastEvent.type === 'comment_added'
+    ) {
+      queryClient.invalidateQueries({ queryKey: ['issues', projectId] });
+    }
+
+    if (lastEvent.type === 'sprint_updated') {
+      queryClient.invalidateQueries({ queryKey: ['sprints', projectId] });
+    }
+
+    queryClient.invalidateQueries({ queryKey: ['activity'] });
+  }, [lastEvent, projectId, queryClient]);
 
   const project = data?.data?.data;
 
@@ -60,7 +83,10 @@ export function ProjectBoard() {
             <p className="text-muted-foreground mt-1">{project.description}</p>
           )}
         </div>
-        <SearchBar projectId={projectId} onSelectIssue={setSelectedIssue} />
+        <div className="flex items-center gap-3">
+          {projectId && <ProjectMembersManager projectId={projectId} />}
+          <SearchBar projectId={projectId} onSelectIssue={setSelectedIssue} />
+        </div>
       </div>
 
       {/* View Tabs */}

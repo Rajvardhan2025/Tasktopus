@@ -1,6 +1,8 @@
 package router
 
 import (
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -9,11 +11,16 @@ import (
 )
 
 func Setup(app *fiber.App, p *provider.Provider) {
+	allowOrigins := "*"
+	if len(p.Config.CORS.Origins) > 0 {
+		allowOrigins = strings.Join(p.Config.CORS.Origins, ",")
+	}
+
 	// Middleware
 	app.Use(recover.New())
 	app.Use(logger.New())
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: p.Config.CORS.Origins[0],
+		AllowOrigins: allowOrigins,
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
 		AllowMethods: "GET, POST, PUT, PATCH, DELETE, OPTIONS",
 	}))
@@ -35,6 +42,8 @@ func Setup(app *fiber.App, p *provider.Provider) {
 	searchHandler := NewSearchHandler(p)
 	wsHandler := NewWebSocketHandler(p)
 	workflowHandler := NewWorkflowHandler(p)
+	notificationHandler := NewNotificationHandler(p)
+	userHandler := NewUserHandler(p)
 
 	// Project routes
 	projects := api.Group("/projects")
@@ -43,6 +52,16 @@ func Setup(app *fiber.App, p *provider.Provider) {
 	projects.Get("/:id", projectHandler.GetByID)
 	projects.Patch("/:id", projectHandler.Update)
 	projects.Delete("/:id", projectHandler.Delete)
+
+	// Project member routes
+	projects.Get("/:id/members", projectHandler.GetMembers)
+	projects.Post("/:id/members", projectHandler.AddMember)
+	projects.Delete("/:id/members/:userId", projectHandler.RemoveMember)
+
+	// User routes
+	users := api.Group("/users")
+	users.Get("/", userHandler.List)
+	users.Post("/", userHandler.Create)
 
 	// Workflow routes
 	projects.Get("/:id/workflow", workflowHandler.GetByProject)
@@ -78,6 +97,11 @@ func Setup(app *fiber.App, p *provider.Provider) {
 
 	// Search routes
 	api.Get("/search", searchHandler.Search)
+
+	// Notification routes
+	api.Get("/notifications", notificationHandler.List)
+	api.Post("/notifications/:id/read", notificationHandler.MarkAsRead)
+	api.Post("/notifications/read-all", notificationHandler.MarkAllAsRead)
 
 	// WebSocket route
 	api.Get("/ws/:projectId", wsHandler.HandleWebSocket)

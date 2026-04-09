@@ -20,14 +20,19 @@ func (h *ActivityHandler) GetProjectActivity(c *fiber.Ctx) error {
 	projectID := c.Params("id")
 
 	limit, _ := strconv.Atoi(c.Query("limit", "50"))
-	skip, _ := strconv.Atoi(c.Query("skip", "0"))
+	cursor := c.Query("cursor", "")
+	action := c.Query("action", "")
+	userID := c.Query("user_id", "")
 
-	activities, err := h.provider.ActivityStore.FindByProject(c.Context(), projectID, limit, skip)
+	activities, nextCursor, err := h.provider.ActivityStore.FindByProjectCursor(c.Context(), projectID, action, userID, limit, cursor)
 	if err != nil {
 		return utils.InternalError(c, err.Error())
 	}
 
-	return utils.SuccessResponse(c, activities)
+	return utils.SuccessResponse(c, fiber.Map{
+		"items":       activities,
+		"next_cursor": nextCursor,
+	})
 }
 
 func (h *ActivityHandler) GetIssueActivity(c *fiber.Ctx) error {

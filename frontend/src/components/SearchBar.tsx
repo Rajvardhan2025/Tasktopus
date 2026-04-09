@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { searchApi, Issue } from '@/lib/api';
+import { searchApi } from '@/lib/api';
+import type { Issue } from '@/lib/api';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -22,7 +23,7 @@ export function SearchBar({ projectId, onSelectIssue }: SearchBarProps) {
     enabled: query.length > 2,
   });
 
-  const issues = data?.data?.data?.issues || [];
+  const issues = data?.data?.data?.items || [];
 
   const handleSelect = (issue: Issue) => {
     onSelectIssue?.(issue);
@@ -41,7 +42,7 @@ export function SearchBar({ projectId, onSelectIssue }: SearchBarProps) {
             setIsOpen(true);
           }}
           onFocus={() => setIsOpen(true)}
-          placeholder="Search issues... (e.g., status:in_progress priority:high)"
+          placeholder="Search issues... (e.g., status=in_progress priority>=high)"
           className="pl-10 pr-10"
         />
         {query && (
@@ -107,9 +108,9 @@ export function SearchBar({ projectId, onSelectIssue }: SearchBarProps) {
             <div className="font-semibold mb-2">Search Tips:</div>
             <ul className="space-y-1 text-xs">
               <li>• Type at least 3 characters to search</li>
-              <li>• Use filters: status:in_progress</li>
-              <li>• Filter by priority: priority:high</li>
-              <li>• Filter by assignee: assignee:user123</li>
+              <li>• Use filters: status=in_progress</li>
+              <li>• Priority threshold: priority&gt;=high</li>
+              <li>• Filter by assignee: assignee=user123</li>
             </ul>
           </div>
         </Card>

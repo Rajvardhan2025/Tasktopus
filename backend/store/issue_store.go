@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/yourusername/project-management/models"
@@ -119,6 +120,34 @@ func (s *IssueStore) RemoveWatcher(ctx context.Context, issueID, userID string) 
 	return err
 }
 
+func (s *IssueStore) UpdateFields(ctx context.Context, id string, update bson.M) error {
+	update["updated_at"] = time.Now()
+	_, err := s.collection.UpdateOne(
+		ctx,
+		bson.M{"_id": id},
+		bson.M{
+			"$set": update,
+			"$inc": bson.M{"version": 1},
+		},
+	)
+	return err
+}
+
+func (s *IssueStore) MoveToBacklog(ctx context.Context, issueID, sprintID string) error {
+	_, err := s.collection.UpdateOne(
+		ctx,
+		bson.M{"_id": issueID, "sprint_id": sprintID},
+		bson.M{
+			"$set": bson.M{
+				"sprint_id":  "",
+				"updated_at": time.Now(),
+			},
+			"$inc": bson.M{"version": 1},
+		},
+	)
+	return err
+}
+
 func (s *IssueStore) GetNextIssueNumber(ctx context.Context, projectKey string) (int, error) {
 	opts := options.FindOne().SetSort(bson.D{{Key: "issue_key", Value: -1}})
 	var issue models.Issue
@@ -157,4 +186,65 @@ func (s *IssueStore) Search(ctx context.Context, query string, filters bson.M, l
 		return nil, err
 	}
 	return issues, nil
+}
+
+func (s *IssueStore) SearchWithCursor(ctx context.Context, filters bson.M, limit int, cursor string) ([]*models.Issue, string, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+
+	query := filters
+	if query == nil {
+		query = bson.M{}
+	}
+
+	if cursor != "" {
+		parts := strings.SplitN(cursor, "|", 2)
+		if len(parts) == 2 {
+			ts, err := time.Parse(time.RFC3339Nano, parts[0])
+			if err == nil {
+				cursorFilter := bson.M{
+					"$or": []bson.M{
+						{"updated_at": bson.M{"$lt": ts}},
+						{
+							"$and": []bson.M{
+								{"updated_at": ts},
+								{"_id": bson.M{"$lt": parts[1]}},
+							},
+						},
+					},
+				}
+
+				if len(query) == 0 {
+					query = cursorFilter
+				} else {
+					query = bson.M{"$and": []bson.M{query, cursorFilter}}
+				}
+			}
+		}
+	}
+
+	opts := options.Find().
+		SetSort(bson.D{{Key: "updated_at", Value: -1}, {Key: "_id", Value: -1}}).
+		SetLimit(int64(limit + 1))
+
+	cursorResult, err := s.collection.Find(ctx, query, opts)
+	if err != nil {
+		return nil, "", err
+	}
+	defer cursorResult.Close(ctx)
+
+	var issues []*models.Issue
+	if err := cursorResult.All(ctx, &issues); err != nil {
+		return nil, "", err
+	}
+
+	nextCursor := ""
+	if len(issues) > limit {
+		last := issues[limit-1]
+		nextCursor = fmt.Sprintf("%s|%s", last.UpdatedAt.UTC().Format(time.RFC3339Nano), last.ID)
+		issues = issues[:limit]
+	}
+
+	return issues, nextCursor, nil
 }

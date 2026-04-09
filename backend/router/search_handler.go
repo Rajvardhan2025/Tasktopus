@@ -34,21 +34,24 @@ func (h *SearchHandler) Search(c *fiber.Ctx) error {
 	if priority := c.Query("priority"); priority != "" {
 		query.Priority = priority
 	}
+	if priorityGTE := c.Query("priority_gte"); priorityGTE != "" {
+		query.PriorityGTE = priorityGTE
+	}
+	if cursor := c.Query("cursor"); cursor != "" {
+		query.Cursor = cursor
+	}
 
 	if limit := c.Query("limit"); limit != "" {
 		query.Limit, _ = strconv.Atoi(limit)
 	}
-	if skip := c.Query("skip"); skip != "" {
-		query.Skip, _ = strconv.Atoi(skip)
-	}
-
-	issues, err := h.provider.SearchService.Search(c.Context(), query)
+	issues, nextCursor, err := h.provider.SearchService.Search(c.Context(), query)
 	if err != nil {
 		return utils.InternalError(c, err.Error())
 	}
 
 	return utils.SuccessResponse(c, fiber.Map{
-		"issues": issues,
-		"query":  query,
+		"items":       issues,
+		"next_cursor": nextCursor,
+		"query":       query,
 	})
 }

@@ -11,36 +11,58 @@ export function useWebSocket(projectId: string | null, userId: string = 'demo-us
   const [isConnected, setIsConnected] = useState(false);
   const [lastEvent, setLastEvent] = useState<WSEvent | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimerRef = useRef<number | null>(null);
+  const lastSeenTimestampRef = useRef<number>(0);
 
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectId) {
+      return;
+    }
 
-    const ws = new WebSocket(`ws://localhost:8080/api/ws/${projectId}?userId=${userId}`);
-    
-    ws.onopen = () => {
-      console.log('WebSocket connected');
-      setIsConnected(true);
+    let isUnmounted = false;
+
+    const connect = () => {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      const params = new URLSearchParams({ userId });
+      if (lastSeenTimestampRef.current > 0) {
+        params.set('since', String(lastSeenTimestampRef.current));
+      }
+
+      const ws = new WebSocket(`${protocol}//${host}/api/ws/${projectId}?${params.toString()}`);
+
+      ws.onopen = () => {
+        setIsConnected(true);
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data) as WSEvent;
+        lastSeenTimestampRef.current = Math.max(lastSeenTimestampRef.current, data.timestamp || 0);
+        setLastEvent(data);
+      };
+
+      ws.onerror = () => {
+        setIsConnected(false);
+      };
+
+      ws.onclose = () => {
+        setIsConnected(false);
+        if (!isUnmounted) {
+          reconnectTimerRef.current = window.setTimeout(connect, 2000);
+        }
+      };
+
+      wsRef.current = ws;
     };
 
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data) as WSEvent;
-      console.log('WebSocket event:', data);
-      setLastEvent(data);
-    };
-
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
-
-    ws.onclose = () => {
-      console.log('WebSocket disconnected');
-      setIsConnected(false);
-    };
-
-    wsRef.current = ws;
+    connect();
 
     return () => {
-      ws.close();
+      isUnmounted = true;
+      if (reconnectTimerRef.current) {
+        window.clearTimeout(reconnectTimerRef.current);
+      }
+      wsRef.current?.close();
     };
   }, [projectId, userId]);
 

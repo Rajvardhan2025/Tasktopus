@@ -49,6 +49,7 @@ func (m *MongoDB) CreateIndexes(ctx context.Context) error {
 		{Keys: map[string]interface{}{"project_id": 1, "status": 1}},
 		{Keys: map[string]interface{}{"project_id": 1, "sprint_id": 1}},
 		{Keys: map[string]interface{}{"assignee_id": 1}},
+		{Keys: map[string]interface{}{"updated_at": -1, "_id": -1}},
 		{Keys: map[string]interface{}{"issue_key": 1}, Options: options.Index().SetUnique(true)},
 		{Keys: map[string]interface{}{"title": "text", "description": "text"}},
 	})
@@ -60,6 +61,7 @@ func (m *MongoDB) CreateIndexes(ctx context.Context) error {
 	activitiesCol := m.Database.Collection("activities")
 	_, err = activitiesCol.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{Keys: map[string]interface{}{"project_id": 1, "timestamp": -1}},
+		{Keys: map[string]interface{}{"project_id": 1, "action": 1, "timestamp": -1}},
 		{Keys: map[string]interface{}{"issue_id": 1, "timestamp": -1}},
 	})
 	if err != nil {
@@ -70,6 +72,7 @@ func (m *MongoDB) CreateIndexes(ctx context.Context) error {
 	commentsCol := m.Database.Collection("comments")
 	_, err = commentsCol.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{Keys: map[string]interface{}{"issue_id": 1, "created_at": 1}},
+		{Keys: map[string]interface{}{"content": "text"}},
 		{Keys: map[string]interface{}{"parent_id": 1}},
 	})
 	if err != nil {
@@ -84,6 +87,26 @@ func (m *MongoDB) CreateIndexes(ctx context.Context) error {
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create projects indexes: %w", err)
+	}
+
+	// Notifications indexes
+	notificationsCol := m.Database.Collection("notifications")
+	_, err = notificationsCol.Indexes().CreateMany(ctx, []mongo.IndexModel{
+		{Keys: map[string]interface{}{"user_id": 1, "timestamp": -1}},
+		{Keys: map[string]interface{}{"user_id": 1, "read": 1}},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create notifications indexes: %w", err)
+	}
+
+	// Users indexes
+	usersCol := m.Database.Collection("users")
+	_, err = usersCol.Indexes().CreateMany(ctx, []mongo.IndexModel{
+		{Keys: map[string]interface{}{"email": 1}, Options: options.Index().SetUnique(true)},
+		{Keys: map[string]interface{}{"display_name": 1}},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create users indexes: %w", err)
 	}
 
 	return nil

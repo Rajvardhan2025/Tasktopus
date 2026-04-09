@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Issue, issuesApi } from '@/lib/api';
+import { issuesApi } from '@/lib/api';
+import type { Issue } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Plus, AlertCircle } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { IssueDialog } from './IssueDialog';
 import { CreateIssueDialog } from './CreateIssueDialog';
 import api from '@/lib/api';
@@ -72,7 +73,10 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
       });
     },
     onError: (error: any) => {
-      const message = error.response?.data?.message || 'Failed to update issue status';
+      const message =
+        error.response?.data?.error?.message ||
+        error.response?.data?.message ||
+        'Failed to update issue status';
       toast({
         title: 'Error',
         description: message,
@@ -106,7 +110,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
     const issueId = e.dataTransfer.getData('issueId');
     const version = parseInt(e.dataTransfer.getData('version'));
     const fromStatus = e.dataTransfer.getData('fromStatus');
-    
+
     if (fromStatus === toStatus) return;
 
     if (!isTransitionAllowed(fromStatus, toStatus)) {
@@ -117,7 +121,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
       });
       return;
     }
-    
+
     transitionMutation.mutate({ issueId, toStatus, version });
   };
 
@@ -139,62 +143,67 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
         </Button>
       </div>
 
-      <div className="grid grid-cols-4 gap-4 h-[calc(100vh-200px)]">
-        {statuses.map((status) => (
-          <div
-            key={status}
-            className="flex flex-col bg-muted/50 rounded-lg p-4"
-            onDrop={(e) => handleDrop(e, status)}
-            onDragOver={handleDragOver}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-sm uppercase tracking-wide">
-                {STATUS_LABELS[status] || status}
-              </h3>
-              <Badge variant="secondary">{issuesByStatus[status]?.length || 0}</Badge>
-            </div>
+      <div className="overflow-x-auto pb-2">
+        <div className="grid min-w-[980px] grid-cols-4 gap-4 h-[calc(100vh-220px)]">
+          {statuses.map((status) => (
+            <div
+              key={status}
+              className="flex flex-col bg-muted/50 rounded-lg p-4"
+              onDrop={(e) => handleDrop(e, status)}
+              onDragOver={handleDragOver}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-sm uppercase tracking-wide">
+                  {STATUS_LABELS[status] || status}
+                </h3>
+                <Badge variant="secondary">{issuesByStatus[status]?.length || 0}</Badge>
+              </div>
 
-            <div className="flex-1 space-y-2 overflow-y-auto">
-              {issuesByStatus[status]?.map((issue) => (
-                <Card
-                  key={issue.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, issue)}
-                  onClick={() => setSelectedIssue(issue)}
-                  className="cursor-pointer hover:shadow-md transition-shadow"
-                >
-                  <CardHeader className="p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <CardTitle className="text-sm font-medium line-clamp-2">
-                        {issue.title}
-                      </CardTitle>
-                      <Badge className={PRIORITY_COLORS[issue.priority]} variant="outline">
-                        {issue.priority}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-3 pt-0">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>{issue.issue_key}</span>
-                      {issue.story_points && (
-                        <Badge variant="secondary">{issue.story_points} pts</Badge>
-                      )}
-                    </div>
-                    {issue.labels.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {issue.labels.map((label) => (
-                          <Badge key={label} variant="outline" className="text-xs">
-                            {label}
-                          </Badge>
-                        ))}
+              <div className="flex-1 space-y-2 overflow-y-auto">
+                {issuesByStatus[status]?.map((issue) => (
+                  <Card
+                    key={issue.id}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, issue)}
+                    onClick={() => setSelectedIssue(issue)}
+                    className="cursor-pointer hover:shadow-md transition-shadow"
+                  >
+                    <CardHeader className="p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <CardTitle className="text-sm font-medium line-clamp-2">
+                          {issue.title}
+                        </CardTitle>
+                        <Badge className={PRIORITY_COLORS[issue.priority]} variant="outline">
+                          {issue.priority}
+                        </Badge>
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardHeader>
+                    <CardContent className="p-3 pt-0">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{issue.issue_key}</span>
+                        {issue.story_points && (
+                          <Badge variant="secondary">{issue.story_points} pts</Badge>
+                        )}
+                      </div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        Assignee: {issue.assignee_id || 'Unassigned'}
+                      </div>
+                      {issue.labels.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {issue.labels.map((label) => (
+                            <Badge key={label} variant="outline" className="text-xs">
+                              {label}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       {selectedIssue && (

@@ -87,6 +87,31 @@ export interface Activity {
   timestamp: string;
 }
 
+export interface CursorResponse<T> {
+  items: T[];
+  next_cursor: string;
+}
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: 'assigned' | 'mentioned' | 'watched' | 'commented';
+  issue_id: string;
+  actor_id: string;
+  message: string;
+  read: boolean;
+  timestamp: string;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  display_name: string;
+  avatar_url?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // API Functions
 export const projectsApi = {
   list: () => api.get<{ data: Project[] }>('/projects'),
@@ -94,6 +119,11 @@ export const projectsApi = {
   create: (data: Partial<Project>) => api.post<{ data: Project }>('/projects', data),
   update: (id: string, data: Partial<Project>) => api.patch<{ data: Project }>(`/projects/${id}`, data),
   delete: (id: string) => api.delete(`/projects/${id}`),
+  members: (projectId: string) => api.get<{ data: User[] }>(`/projects/${projectId}/members`),
+  addMember: (projectId: string, userId: string) =>
+    api.post(`/projects/${projectId}/members`, { user_id: userId }),
+  removeMember: (projectId: string, userId: string) =>
+    api.delete(`/projects/${projectId}/members/${userId}`),
 };
 
 export const issuesApi = {
@@ -113,6 +143,7 @@ export const sprintsApi = {
   list: (projectId: string) => api.get<{ data: Sprint[] }>(`/projects/${projectId}/sprints`),
   get: (id: string) => api.get<{ data: Sprint }>(`/sprints/${id}`),
   create: (data: Partial<Sprint>) => api.post<{ data: Sprint }>('/sprints', data),
+  update: (id: string, data: Partial<Sprint>) => api.patch<{ data: Sprint }>(`/sprints/${id}`, data),
   start: (id: string) => api.post<{ data: Sprint }>(`/sprints/${id}/start`),
   complete: (id: string, carryOverIssues: string[]) =>
     api.post<{ data: Sprint }>(`/sprints/${id}/complete`, { carry_over_issues: carryOverIssues }),
@@ -128,8 +159,13 @@ export const commentsApi = {
 };
 
 export const activityApi = {
-  project: (projectId: string, limit = 50, skip = 0) =>
-    api.get<{ data: Activity[] }>(`/projects/${projectId}/activity?limit=${limit}&skip=${skip}`),
+  project: (projectId: string, limit = 50, cursor?: string, action?: string, userId?: string) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (cursor) params.set('cursor', cursor);
+    if (action) params.set('action', action);
+    if (userId) params.set('user_id', userId);
+    return api.get<{ data: CursorResponse<Activity> }>(`/projects/${projectId}/activity?${params}`);
+  },
   issue: (issueId: string) =>
     api.get<{ data: Activity[] }>(`/issues/${issueId}/activity`),
 };
@@ -137,13 +173,24 @@ export const activityApi = {
 export const searchApi = {
   search: (query: string, filters?: Record<string, string>) => {
     const params = new URLSearchParams({ q: query, ...filters });
-    return api.get<{ data: { issues: Issue[] } }>(`/search?${params}`);
+    return api.get<{ data: CursorResponse<Issue> & { query: Record<string, unknown> } }>(`/search?${params}`);
   },
 };
 
 export const workflowApi = {
   get: (projectId: string) => api.get(`/projects/${projectId}/workflow`),
   createDefault: (projectId: string) => api.post(`/projects/${projectId}/workflow`),
+};
+
+export const notificationsApi = {
+  list: (limit = 50) => api.get<{ data: Notification[] }>(`/notifications?limit=${limit}`),
+  markRead: (id: string) => api.post(`/notifications/${id}/read`),
+  markAllRead: () => api.post('/notifications/read-all'),
+};
+
+export const usersApi = {
+  list: () => api.get<{ data: User[] }>('/users'),
+  create: (data: Pick<User, 'email' | 'display_name' | 'avatar_url'>) => api.post<{ data: User }>('/users', data),
 };
 
 export default api;

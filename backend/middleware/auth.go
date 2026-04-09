@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -31,8 +32,11 @@ func Auth(cfg *config.Config) fiber.Handler {
 		}
 
 		if claims, ok := token.Claims.(jwt.MapClaims); ok {
-			c.Locals("userID", claims["user_id"])
+			c.Locals("userID", fmt.Sprintf("%v", claims["user_id"]))
+			return c.Next()
 		}
+
+		c.Locals("userID", "demo-user")
 
 		return c.Next()
 	}

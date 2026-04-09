@@ -62,3 +62,7 @@ func (s *NotificationService) GetUserNotifications(ctx context.Context, userID s
 func (s *NotificationService) MarkAsRead(ctx context.Context, notificationID string) error {
 	return s.notificationStore.MarkAsRead(ctx, notificationID)
 }
+
+func (s *NotificationService) MarkAllAsRead(ctx context.Context, userID string) error {
+	return s.notificationStore.MarkAllAsRead(ctx, userID)
+}

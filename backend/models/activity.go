@@ -10,9 +10,13 @@ const (
 	ActivityIssueDeleted    ActivityAction = "issue_deleted"
 	ActivityStatusChanged   ActivityAction = "status_changed"
 	ActivityCommentAdded    ActivityAction = "comment_added"
+	ActivityCommentUpdated  ActivityAction = "comment_updated"
+	ActivityCommentDeleted  ActivityAction = "comment_deleted"
 	ActivitySprintStarted   ActivityAction = "sprint_started"
 	ActivitySprintCompleted ActivityAction = "sprint_completed"
 	ActivityAssigneeChanged ActivityAction = "assignee_changed"
+	ActivityWatcherAdded    ActivityAction = "watcher_added"
+	ActivityWatcherRemoved  ActivityAction = "watcher_removed"
 )
 
 type Activity struct {

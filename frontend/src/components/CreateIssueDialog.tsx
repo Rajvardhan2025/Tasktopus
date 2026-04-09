@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { issuesApi } from '@/lib/api';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { issuesApi, projectsApi } from '@/lib/api';
 import {
   Dialog,
   DialogContent,
@@ -25,8 +25,17 @@ export function CreateIssueDialog({ projectId, open, onClose }: CreateIssueDialo
   const [type, setType] = useState<'story' | 'task' | 'bug'>('story');
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
   const [storyPoints, setStoryPoints] = useState('');
-  
+  const [assigneeId, setAssigneeId] = useState('');
+
   const queryClient = useQueryClient();
+
+  const { data: membersData } = useQuery({
+    queryKey: ['project-members', projectId],
+    queryFn: () => projectsApi.members(projectId),
+    enabled: open,
+  });
+
+  const members = membersData?.data?.data || [];
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -36,6 +45,7 @@ export function CreateIssueDialog({ projectId, open, onClose }: CreateIssueDialo
         type,
         priority,
         story_points: storyPoints ? parseInt(storyPoints) : undefined,
+        assignee_id: assigneeId || undefined,
         labels: [],
       }),
     onSuccess: () => {
@@ -50,6 +60,7 @@ export function CreateIssueDialog({ projectId, open, onClose }: CreateIssueDialo
     setType('story');
     setPriority('medium');
     setStoryPoints('');
+    setAssigneeId('');
     onClose();
   };
 
@@ -88,7 +99,7 @@ export function CreateIssueDialog({ projectId, open, onClose }: CreateIssueDialo
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <div>
               <Label htmlFor="type">Type</Label>
               <select
@@ -129,6 +140,23 @@ export function CreateIssueDialog({ projectId, open, onClose }: CreateIssueDialo
                 placeholder="0"
                 min="0"
               />
+            </div>
+
+            <div>
+              <Label htmlFor="assignee">Assignee</Label>
+              <select
+                id="assignee"
+                value={assigneeId}
+                onChange={(e) => setAssigneeId(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">Unassigned</option>
+                {members.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.display_name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

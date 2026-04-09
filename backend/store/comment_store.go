@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"regexp"
 	"time"
 
 	"github.com/yourusername/project-management/models"
@@ -63,4 +64,66 @@ func (s *CommentStore) Update(ctx context.Context, id string, content string) er
 func (s *CommentStore) Delete(ctx context.Context, id string) error {
 	_, err := s.collection.DeleteOne(ctx, bson.M{"_id": id})
 	return err
+}
+
+func (s *CommentStore) SearchIssueIDsByContent(ctx context.Context, text, projectID string, limit int) ([]string, error) {
+	if text == "" {
+		return []string{}, nil
+	}
+
+	if limit <= 0 {
+		limit = 100
+	}
+
+	matchStage := bson.D{{
+		Key: "$match",
+		Value: bson.M{
+			"content": bson.M{
+				"$regex":   regexp.QuoteMeta(text),
+				"$options": "i",
+			},
+		},
+	}}
+
+	lookupStage := bson.D{{
+		Key: "$lookup",
+		Value: bson.M{
+			"from":         "issues",
+			"localField":   "issue_id",
+			"foreignField": "_id",
+			"as":           "issue",
+		},
+	}}
+
+	unwindStage := bson.D{{Key: "$unwind", Value: "$issue"}}
+
+	pipeline := mongo.Pipeline{matchStage, lookupStage, unwindStage}
+	if projectID != "" {
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.M{"issue.project_id": projectID}}})
+	}
+
+	pipeline = append(pipeline,
+		bson.D{{Key: "$group", Value: bson.M{"_id": "$issue_id"}}},
+		bson.D{{Key: "$limit", Value: limit}},
+	)
+
+	cursor, err := s.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var rows []struct {
+		ID string `bson:"_id"`
+	}
+	if err := cursor.All(ctx, &rows); err != nil {
+		return nil, err
+	}
+
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+	}
+
+	return ids, nil
 }

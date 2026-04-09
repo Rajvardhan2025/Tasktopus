@@ -1,11 +1,13 @@
 package router
 
 import (
+	"errors"
 	"log"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/project-management/models"
 	"github.com/yourusername/project-management/provider"
+	"github.com/yourusername/project-management/service"
 	"github.com/yourusername/project-management/utils"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -115,6 +117,10 @@ func (h *IssueHandler) Transition(c *fiber.Ctx) error {
 
 	issue, err := h.provider.IssueService.Transition(c.Context(), issueID, &req, userID)
 	if err != nil {
+		var transitionErr *service.TransitionValidationError
+		if errors.As(err, &transitionErr) {
+			return utils.ErrorResponse(c, fiber.StatusUnprocessableEntity, "TRANSITION_ERROR", transitionErr.Error())
+		}
 		return utils.ErrorResponse(c, fiber.StatusUnprocessableEntity, "TRANSITION_ERROR", err.Error())
 	}
 
@@ -123,8 +129,9 @@ func (h *IssueHandler) Transition(c *fiber.Ctx) error {
 
 func (h *IssueHandler) Delete(c *fiber.Ctx) error {
 	issueID := c.Params("id")
+	userID := c.Locals("userID").(string)
 
-	if err := h.provider.IssueStore.Delete(c.Context(), issueID); err != nil {
+	if err := h.provider.IssueService.Delete(c.Context(), issueID, userID); err != nil {
 		return utils.InternalError(c, err.Error())
 	}
 
@@ -135,7 +142,7 @@ func (h *IssueHandler) AddWatcher(c *fiber.Ctx) error {
 	issueID := c.Params("id")
 	userID := c.Locals("userID").(string)
 
-	if err := h.provider.IssueStore.AddWatcher(c.Context(), issueID, userID); err != nil {
+	if err := h.provider.IssueService.AddWatcher(c.Context(), issueID, userID); err != nil {
 		return utils.InternalError(c, err.Error())
 	}
 
@@ -146,7 +153,7 @@ func (h *IssueHandler) RemoveWatcher(c *fiber.Ctx) error {
 	issueID := c.Params("id")
 	userID := c.Locals("userID").(string)
 
-	if err := h.provider.IssueStore.RemoveWatcher(c.Context(), issueID, userID); err != nil {
+	if err := h.provider.IssueService.RemoveWatcher(c.Context(), issueID, userID); err != nil {
 		return utils.InternalError(c, err.Error())
 	}
 

@@ -15,17 +15,20 @@ type SprintService struct {
 	sprintStore   *store.SprintStore
 	issueStore    *store.IssueStore
 	activityStore *store.ActivityStore
+	wsSvc         *WebSocketService
 }
 
 func NewSprintService(
 	sprintStore *store.SprintStore,
 	issueStore *store.IssueStore,
 	activityStore *store.ActivityStore,
+	wsSvc *WebSocketService,
 ) *SprintService {
 	return &SprintService{
 		sprintStore:   sprintStore,
 		issueStore:    issueStore,
 		activityStore: activityStore,
+		wsSvc:         wsSvc,
 	}
 }
 
@@ -127,6 +130,11 @@ func (s *SprintService) Start(ctx context.Context, sprintID, userID string) (*mo
 	_ = s.activityStore.Create(ctx, activity)
 
 	updatedSprint, _ := s.sprintStore.FindByID(ctx, sprintID)
+	s.wsSvc.BroadcastToProject(sprint.ProjectID, models.WSEvent{
+		Type:      models.WSEventSprintUpdated,
+		ProjectID: sprint.ProjectID,
+		Data:      updatedSprint,
+	})
 	return updatedSprint, nil
 }
 
@@ -169,7 +177,9 @@ func (s *SprintService) Close(ctx context.Context, sprintID string, req *models.
 	for _, issueID := range incompleteIssues {
 		if !carryOverMap[issueID] {
 			// Remove from sprint (move to backlog)
-			_ = s.issueStore.UpdateWithVersion(ctx, issueID, 0, bson.M{"sprint_id": ""})
+			if err := s.issueStore.MoveToBacklog(ctx, issueID, sprintID); err != nil {
+				return nil, fmt.Errorf("failed to move issue %s to backlog: %w", issueID, err)
+			}
 		}
 	}
 
@@ -217,6 +227,11 @@ func (s *SprintService) Close(ctx context.Context, sprintID string, req *models.
 	_ = s.activityStore.Create(ctx, activity)
 
 	updatedSprint, _ := s.sprintStore.FindByID(ctx, sprintID)
+	s.wsSvc.BroadcastToProject(sprint.ProjectID, models.WSEvent{
+		Type:      models.WSEventSprintUpdated,
+		ProjectID: sprint.ProjectID,
+		Data:      updatedSprint,
+	})
 	return updatedSprint, nil
 }
 
@@ -239,4 +254,46 @@ func (s *SprintService) GetByProject(ctx context.Context, projectID string) ([]*
 		return nil, fmt.Errorf("failed to fetch sprints: %w", err)
 	}
 	return sprints, nil
+}
+
+func (s *SprintService) Update(ctx context.Context, sprintID string, req *models.UpdateSprintRequest) (*models.Sprint, error) {
+	sprint, err := s.sprintStore.FindByID(ctx, sprintID)
+	if err != nil {
+		return nil, fmt.Errorf("sprint not found: %w", err)
+	}
+
+	update := bson.M{}
+	if req.Name != nil {
+		update["name"] = *req.Name
+	}
+	if req.Goal != nil {
+		update["goal"] = *req.Goal
+	}
+	if req.StartDate != nil {
+		update["start_date"] = req.StartDate
+	}
+	if req.EndDate != nil {
+		update["end_date"] = req.EndDate
+	}
+
+	if len(update) == 0 {
+		return sprint, nil
+	}
+
+	if err := s.sprintStore.Update(ctx, sprintID, update); err != nil {
+		return nil, fmt.Errorf("failed to update sprint: %w", err)
+	}
+
+	updatedSprint, err := s.sprintStore.FindByID(ctx, sprintID)
+	if err != nil {
+		return nil, err
+	}
+
+	s.wsSvc.BroadcastToProject(updatedSprint.ProjectID, models.WSEvent{
+		Type:      models.WSEventSprintUpdated,
+		ProjectID: updatedSprint.ProjectID,
+		Data:      updatedSprint,
+	})
+
+	return updatedSprint, nil
 }

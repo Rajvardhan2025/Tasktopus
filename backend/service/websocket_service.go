@@ -5,10 +5,12 @@ import (
 	"time"
 
 	"github.com/gofiber/websocket/v2"
+	"github.com/google/uuid"
 	"github.com/yourusername/project-management/models"
 )
 
 type Client struct {
+	ID        string
 	Conn      *websocket.Conn
 	ProjectID string
 	UserID    string
@@ -41,13 +43,13 @@ func (s *WebSocketService) run() {
 		select {
 		case client := <-s.register:
 			s.mu.Lock()
-			s.clients[client.UserID] = client
+			s.clients[client.ID] = client
 			s.mu.Unlock()
 
 		case client := <-s.unregister:
 			s.mu.Lock()
-			if _, ok := s.clients[client.UserID]; ok {
-				delete(s.clients, client.UserID)
+			if _, ok := s.clients[client.ID]; ok {
+				delete(s.clients, client.ID)
 				close(client.Send)
 			}
 			s.mu.Unlock()
@@ -60,7 +62,7 @@ func (s *WebSocketService) run() {
 					case client.Send <- event:
 					default:
 						close(client.Send)
-						delete(s.clients, client.UserID)
+						delete(s.clients, client.ID)
 					}
 				}
 			}
@@ -71,6 +73,7 @@ func (s *WebSocketService) run() {
 
 func (s *WebSocketService) RegisterClient(conn *websocket.Conn, projectID, userID string) *Client {
 	client := &Client{
+		ID:        uuid.New().String(),
 		Conn:      conn,
 		ProjectID: projectID,
 		UserID:    userID,

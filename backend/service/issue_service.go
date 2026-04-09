@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/yourusername/project-management/models"
@@ -13,6 +15,7 @@ import (
 
 type IssueService struct {
 	issueStore      *store.IssueStore
+	userStore       *store.UserStore
 	projectStore    *store.ProjectStore
 	activityStore   *store.ActivityStore
 	workflowSvc     *WorkflowService
@@ -22,6 +25,7 @@ type IssueService struct {
 
 func NewIssueService(
 	issueStore *store.IssueStore,
+	userStore *store.UserStore,
 	projectStore *store.ProjectStore,
 	activityStore *store.ActivityStore,
 	workflowSvc *WorkflowService,
@@ -30,6 +34,7 @@ func NewIssueService(
 ) *IssueService {
 	return &IssueService{
 		issueStore:      issueStore,
+		userStore:       userStore,
 		projectStore:    projectStore,
 		activityStore:   activityStore,
 		workflowSvc:     workflowSvc,
@@ -60,6 +65,18 @@ func (s *IssueService) Create(ctx context.Context, req *models.CreateIssueReques
 		return nil, fmt.Errorf("invalid workflow configuration")
 	}
 	log.Printf("[IssueService.Create] Workflow found with %d statuses, default: %s", len(workflow.Statuses), workflow.Statuses[0])
+
+	if err := s.validateCustomFields(req.CustomFields, project.CustomFields); err != nil {
+		return nil, err
+	}
+
+	if err := s.validateAssignee(ctx, project, req.AssigneeID); err != nil {
+		return nil, err
+	}
+
+	if err := s.validateParentRelationship(ctx, req.ProjectID, req.Type, req.ParentID); err != nil {
+		return nil, err
+	}
 
 	// Generate issue key
 	issueNum, err := s.issueStore.GetNextIssueNumber(ctx, project.Key)
@@ -128,6 +145,11 @@ func (s *IssueService) Update(ctx context.Context, issueID string, req *models.U
 	update := bson.M{}
 	changes := make(map[string]interface{})
 
+	project, err := s.projectStore.FindByID(ctx, issue.ProjectID)
+	if err != nil {
+		return nil, fmt.Errorf("project not found: %w", err)
+	}
+
 	if req.Title != nil {
 		update["title"] = *req.Title
 		changes["title"] = map[string]interface{}{"old": issue.Title, "new": *req.Title}
@@ -140,6 +162,10 @@ func (s *IssueService) Update(ctx context.Context, issueID string, req *models.U
 		changes["priority"] = map[string]interface{}{"old": issue.Priority, "new": *req.Priority}
 	}
 	if req.AssigneeID != nil {
+		if err := s.validateAssignee(ctx, project, *req.AssigneeID); err != nil {
+			return nil, err
+		}
+
 		update["assignee_id"] = *req.AssigneeID
 		changes["assignee_id"] = map[string]interface{}{"old": issue.AssigneeID, "new": *req.AssigneeID}
 
@@ -160,6 +186,9 @@ func (s *IssueService) Update(ctx context.Context, issueID string, req *models.U
 		update["story_points"] = *req.StoryPoints
 	}
 	if req.CustomFields != nil {
+		if err := s.validateCustomFields(*req.CustomFields, project.CustomFields); err != nil {
+			return nil, err
+		}
 		update["custom_fields"] = *req.CustomFields
 	}
 
@@ -167,8 +196,20 @@ func (s *IssueService) Update(ctx context.Context, issueID string, req *models.U
 
 	// Optimistic locking
 	if err := s.issueStore.UpdateWithVersion(ctx, issueID, req.Version, update); err != nil {
-		log.Printf("[IssueService.Update] Update error: %v", err)
-		return nil, err
+		if !isVersionConflict(err) {
+			log.Printf("[IssueService.Update] Update error: %v", err)
+			return nil, err
+		}
+
+		latest, latestErr := s.issueStore.FindByID(ctx, issueID)
+		if latestErr != nil {
+			return nil, err
+		}
+
+		if retryErr := s.issueStore.UpdateWithVersion(ctx, issueID, latest.Version, update); retryErr != nil {
+			log.Printf("[IssueService.Update] Retry update error: %v", retryErr)
+			return nil, retryErr
+		}
 	}
 
 	// Log activity
@@ -208,13 +249,17 @@ func (s *IssueService) Transition(ctx context.Context, issueID string, req *mode
 	}
 
 	// Execute transition actions
-	if err := s.workflowSvc.ExecuteActions(ctx, issue.ProjectID, issue.Status, req.ToStatus, issue); err != nil {
+	actionUpdates, err := s.workflowSvc.ExecuteActions(ctx, issue.ProjectID, issue.Status, req.ToStatus, userID, issue)
+	if err != nil {
 		log.Printf("[IssueService.Transition] Action execution failed: %v", err)
 		return nil, err
 	}
 
 	// Update status
 	update := bson.M{"status": req.ToStatus}
+	for key, value := range actionUpdates {
+		update[key] = value
+	}
 	if err := s.issueStore.UpdateWithVersion(ctx, issueID, req.Version, update); err != nil {
 		log.Printf("[IssueService.Transition] Update failed: %v", err)
 		return nil, err
@@ -238,7 +283,7 @@ func (s *IssueService) Transition(ctx context.Context, issueID string, req *mode
 
 	// Broadcast WebSocket event
 	s.wsSvc.BroadcastToProject(issue.ProjectID, models.WSEvent{
-		Type:      models.WSEventIssueUpdated,
+		Type:      models.WSEventIssueMoved,
 		ProjectID: issue.ProjectID,
 		Data:      updatedIssue,
 	})
@@ -255,6 +300,61 @@ func (s *IssueService) GetByProject(ctx context.Context, projectID string) ([]*m
 	return s.issueStore.FindByProject(ctx, projectID)
 }
 
+func (s *IssueService) Delete(ctx context.Context, issueID, userID string) error {
+	issue, err := s.issueStore.FindByID(ctx, issueID)
+	if err != nil {
+		return err
+	}
+
+	if err := s.issueStore.Delete(ctx, issueID); err != nil {
+		return err
+	}
+
+	s.logActivity(ctx, issue.ProjectID, issueID, userID, models.ActivityIssueDeleted, map[string]interface{}{
+		"issue_key": issue.IssueKey,
+	})
+
+	s.wsSvc.BroadcastToProject(issue.ProjectID, models.WSEvent{
+		Type:      models.WSEventIssueUpdated,
+		ProjectID: issue.ProjectID,
+		Data:      fiberLikeMap("deleted_issue_id", issueID),
+	})
+
+	return nil
+}
+
+func (s *IssueService) AddWatcher(ctx context.Context, issueID, userID string) error {
+	issue, err := s.issueStore.FindByID(ctx, issueID)
+	if err != nil {
+		return err
+	}
+
+	if err := s.issueStore.AddWatcher(ctx, issueID, userID); err != nil {
+		return err
+	}
+
+	s.logActivity(ctx, issue.ProjectID, issueID, userID, models.ActivityWatcherAdded, map[string]interface{}{
+		"watcher_id": userID,
+	})
+	return nil
+}
+
+func (s *IssueService) RemoveWatcher(ctx context.Context, issueID, userID string) error {
+	issue, err := s.issueStore.FindByID(ctx, issueID)
+	if err != nil {
+		return err
+	}
+
+	if err := s.issueStore.RemoveWatcher(ctx, issueID, userID); err != nil {
+		return err
+	}
+
+	s.logActivity(ctx, issue.ProjectID, issueID, userID, models.ActivityWatcherRemoved, map[string]interface{}{
+		"watcher_id": userID,
+	})
+	return nil
+}
+
 func (s *IssueService) logActivity(ctx context.Context, projectID, issueID, userID string, action models.ActivityAction, changes map[string]interface{}) {
 	activity := &models.Activity{
 		ID:        uuid.New().String(),
@@ -265,4 +365,130 @@ func (s *IssueService) logActivity(ctx context.Context, projectID, issueID, user
 		Changes:   changes,
 	}
 	s.activityStore.Create(ctx, activity)
+}
+
+func (s *IssueService) validateParentRelationship(ctx context.Context, projectID string, issueType models.IssueType, parentID string) error {
+	if parentID == "" {
+		if issueType == models.IssueTypeSubtask {
+			return fmt.Errorf("subtask issues require a parent")
+		}
+		return nil
+	}
+
+	parent, err := s.issueStore.FindByID(ctx, parentID)
+	if err != nil {
+		return fmt.Errorf("parent issue not found: %w", err)
+	}
+	if parent.ProjectID != projectID {
+		return fmt.Errorf("parent issue must belong to the same project")
+	}
+
+	allowedChildren := map[models.IssueType][]models.IssueType{
+		models.IssueTypeEpic:    {models.IssueTypeStory, models.IssueTypeTask, models.IssueTypeBug},
+		models.IssueTypeStory:   {models.IssueTypeSubtask},
+		models.IssueTypeTask:    {models.IssueTypeSubtask},
+		models.IssueTypeBug:     {models.IssueTypeSubtask},
+		models.IssueTypeSubtask: {},
+	}
+
+	children := allowedChildren[parent.Type]
+	for _, child := range children {
+		if child == issueType {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid parent-child relationship: parent '%s' cannot contain child '%s'", parent.Type, issueType)
+}
+
+func (s *IssueService) validateCustomFields(values map[string]interface{}, defs []models.CustomField) error {
+	if len(values) == 0 {
+		return nil
+	}
+
+	defByName := map[string]models.CustomField{}
+	for _, def := range defs {
+		defByName[def.Name] = def
+	}
+
+	for key, value := range values {
+		def, ok := defByName[key]
+		if !ok {
+			return fmt.Errorf("unknown custom field: %s", key)
+		}
+
+		switch def.Type {
+		case "text":
+			if _, ok := value.(string); !ok {
+				return fmt.Errorf("custom field '%s' must be text", key)
+			}
+		case "number":
+			switch value.(type) {
+			case int, int32, int64, float32, float64:
+			default:
+				return fmt.Errorf("custom field '%s' must be a number", key)
+			}
+		case "dropdown":
+			selected, ok := value.(string)
+			if !ok {
+				return fmt.Errorf("custom field '%s' must be a dropdown option", key)
+			}
+			allowed := false
+			for _, option := range def.Options {
+				if option == selected {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				return fmt.Errorf("custom field '%s' has invalid option '%s'", key, selected)
+			}
+		case "date":
+			dateString, ok := value.(string)
+			if !ok {
+				return fmt.Errorf("custom field '%s' must be a date string", key)
+			}
+			if _, err := time.Parse("2006-01-02", dateString); err != nil {
+				if _, err := time.Parse(time.RFC3339, dateString); err != nil {
+					return fmt.Errorf("custom field '%s' must be ISO date (YYYY-MM-DD or RFC3339)", key)
+				}
+			}
+		default:
+			return fmt.Errorf("unsupported custom field type '%s'", def.Type)
+		}
+	}
+
+	return nil
+}
+
+func fiberLikeMap(key, value string) map[string]string {
+	return map[string]string{key: value}
+}
+
+func isVersionConflict(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "version conflict")
+}
+
+func (s *IssueService) validateAssignee(ctx context.Context, project *models.Project, assigneeID string) error {
+	if assigneeID == "" {
+		return nil
+	}
+
+	if _, err := s.userStore.FindByID(ctx, assigneeID); err != nil {
+		return fmt.Errorf("assignee user not found")
+	}
+
+	isMember := false
+	for _, memberID := range project.Members {
+		if memberID == assigneeID {
+			isMember = true
+			break
+		}
+	}
+
+	if !isMember {
+		return fmt.Errorf("assignee must be a member of this project")
+	}
+
+	return nil
 }

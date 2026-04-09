@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Issue, commentsApi, activityApi, issuesApi } from '@/lib/api';
+import { commentsApi, activityApi, issuesApi, projectsApi } from '@/lib/api';
+import type { Issue } from '@/lib/api';
 import {
   Dialog,
   DialogContent,
@@ -30,7 +31,26 @@ export function IssueDialog({ issue, open, onClose }: IssueDialogProps) {
   const [editedDescription, setEditedDescription] = useState(issue.description);
   const [editedStoryPoints, setEditedStoryPoints] = useState(issue.story_points?.toString() || '');
   const [editedPriority, setEditedPriority] = useState(issue.priority);
+  const [editedAssigneeId, setEditedAssigneeId] = useState(issue.assignee_id || '');
   const queryClient = useQueryClient();
+
+  const { data: issueData } = useQuery({
+    queryKey: ['issue', issue.id],
+    queryFn: () => issuesApi.get(issue.id),
+    enabled: open,
+  });
+
+  const currentIssue = issueData?.data?.data || issue;
+
+  const { data: membersData } = useQuery({
+    queryKey: ['project-members', issue.project_id],
+    queryFn: () => projectsApi.members(issue.project_id),
+    enabled: open,
+  });
+
+  const members = membersData?.data?.data || [];
+
+  const assigneeName = members.find((member) => member.id === currentIssue.assignee_id)?.display_name;
 
   const { data: commentsData } = useQuery({
     queryKey: ['comments', issue.id],
@@ -59,7 +79,8 @@ export function IssueDialog({ issue, open, onClose }: IssueDialogProps) {
         description: editedDescription,
         story_points: editedStoryPoints ? parseInt(editedStoryPoints) : undefined,
         priority: editedPriority,
-        version: issue.version,
+        assignee_id: editedAssigneeId || undefined,
+        version: currentIssue.version,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['issues', issue.project_id] });
@@ -76,6 +97,7 @@ export function IssueDialog({ issue, open, onClose }: IssueDialogProps) {
     setEditedDescription(issue.description);
     setEditedStoryPoints(issue.story_points?.toString() || '');
     setEditedPriority(issue.priority);
+    setEditedAssigneeId(issue.assignee_id || '');
     setIsEditing(false);
   };
 
@@ -89,9 +111,9 @@ export function IssueDialog({ issue, open, onClose }: IssueDialogProps) {
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2">
-                <Badge variant="outline">{issue.issue_key}</Badge>
-                <Badge>{issue.type}</Badge>
-                <Badge variant="secondary">{issue.priority}</Badge>
+                <Badge variant="outline">{currentIssue.issue_key}</Badge>
+                <Badge>{currentIssue.type}</Badge>
+                <Badge variant="secondary">{currentIssue.priority}</Badge>
               </div>
               {isEditing ? (
                 <Input
@@ -100,7 +122,7 @@ export function IssueDialog({ issue, open, onClose }: IssueDialogProps) {
                   className="text-2xl font-bold"
                 />
               ) : (
-                <DialogTitle className="text-2xl">{issue.title}</DialogTitle>
+                <DialogTitle className="text-2xl">{currentIssue.title}</DialogTitle>
               )}
             </div>
             <div className="flex gap-2">
@@ -145,7 +167,7 @@ export function IssueDialog({ issue, open, onClose }: IssueDialogProps) {
           {/* Details */}
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <span className="font-semibold">Status:</span> {issue.status}
+              <span className="font-semibold">Status:</span> {currentIssue.status}
             </div>
             <div>
               <Label className="font-semibold">Priority:</Label>
@@ -162,7 +184,7 @@ export function IssueDialog({ issue, open, onClose }: IssueDialogProps) {
                   <option value="highest">Highest</option>
                 </select>
               ) : (
-                <span className="ml-2">{issue.priority}</span>
+                <span className="ml-2">{currentIssue.priority}</span>
               )}
             </div>
             <div>
@@ -176,14 +198,33 @@ export function IssueDialog({ issue, open, onClose }: IssueDialogProps) {
                   min="0"
                 />
               ) : (
-                <span className="ml-2">{issue.story_points || 'Not set'}</span>
+                <span className="ml-2">{currentIssue.story_points || 'Not set'}</span>
               )}
             </div>
-            {issue.labels.length > 0 && (
+            <div>
+              <Label className="font-semibold">Assignee:</Label>
+              {isEditing ? (
+                <select
+                  value={editedAssigneeId}
+                  onChange={(e) => setEditedAssigneeId(e.target.value)}
+                  className="ml-2 border rounded px-2 py-1"
+                >
+                  <option value="">Unassigned</option>
+                  {members.map((member) => (
+                    <option key={member.id} value={member.id}>
+                      {member.display_name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="ml-2">{assigneeName || currentIssue.assignee_id || 'Unassigned'}</span>
+              )}
+            </div>
+            {currentIssue.labels.length > 0 && (
               <div>
                 <span className="font-semibold">Labels:</span>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {issue.labels.map((label) => (
+                  {currentIssue.labels.map((label) => (
                     <Badge key={label} variant="outline" className="text-xs">
                       {label}
                     </Badge>

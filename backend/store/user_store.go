@@ -57,3 +57,18 @@ func (s *UserStore) FindByIDs(ctx context.Context, ids []string) ([]*models.User
 	}
 	return users, nil
 }
+
+func (s *UserStore) List(ctx context.Context) ([]*models.User, error) {
+	cursor, err := s.collection.Find(ctx, bson.M{})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var users []*models.User
+	if err := cursor.All(ctx, &users); err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}
