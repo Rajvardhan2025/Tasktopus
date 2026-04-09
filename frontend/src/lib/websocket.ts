@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { appConfig } from '@/lib/config';
 
 export interface WSEvent {
   type: 'issue_created' | 'issue_updated' | 'issue_moved' | 'comment_added' | 'sprint_updated' | 'presence';
@@ -22,14 +23,12 @@ export function useWebSocket(projectId: string | null, userId: string = 'demo-us
     let isUnmounted = false;
 
     const connect = () => {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = window.location.host;
       const params = new URLSearchParams({ userId });
       if (lastSeenTimestampRef.current > 0) {
         params.set('since', String(lastSeenTimestampRef.current));
       }
 
-      const ws = new WebSocket(`${protocol}//${host}/api/ws/${projectId}?${params.toString()}`);
+      const ws = new WebSocket(`${appConfig.wsBaseUrl}/api/ws/${projectId}?${params.toString()}`);
 
       ws.onopen = () => {
         setIsConnected(true);

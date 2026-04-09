@@ -26,7 +26,7 @@ Modern, responsive project management UI built with React, Vite, TypeScript, Tai
 - **shadcn/ui**: High-quality React components
 - **TanStack Query**: Powerful data fetching and caching
 - **React Router**: Client-side routing
-- **Axios**: HTTP client
+- **Fetch API**: Native HTTP client
 - **date-fns**: Date formatting
 
 ## Getting Started
@@ -50,6 +50,12 @@ npm run dev
 ```
 
 The app will be available at `http://localhost:5173`
+
+Create a `.env` file in `frontend/` (or set env vars in your shell):
+
+```bash
+VITE_BACKEND_URL=http://localhost:8080
+```
 
 ### Build for Production
 
@@ -225,19 +231,7 @@ Deploy the `dist/` folder to:
 
 ### Environment Variables
 
-For production, update the API base URL in `vite.config.ts` or use environment variables:
-
-```typescript
-// vite.config.ts
-server: {
-  proxy: {
-    '/api': {
-      target: process.env.VITE_API_URL || 'http://localhost:8080',
-      changeOrigin: true,
-    },
-  },
-}
-```
+For production, set `VITE_BACKEND_URL` to your backend origin (for example `https://api.example.com`).
 
 ## Contributing
 

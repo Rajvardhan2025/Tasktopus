@@ -1,11 +1,102 @@
-import axios from 'axios';
+import { appConfig } from '@/lib/config';
 
-const api = axios.create({
-  baseURL: '/api',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+interface ApiResponse<T> {
+  data: T;
+  status: number;
+  headers: Headers;
+}
+
+interface ApiErrorResponse {
+  data: unknown;
+  status: number;
+  headers: Headers;
+}
+
+class ApiError extends Error {
+  response: ApiErrorResponse;
+
+  constructor(message: string, response: ApiErrorResponse) {
+    super(message);
+    this.name = 'ApiError';
+    this.response = response;
+  }
+}
+
+function joinUrl(base: string, path: string): string {
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+
+  if (path.startsWith('/')) {
+    return `${base}${path}`;
+  }
+
+  return `${base}/${path}`;
+}
+
+async function parseResponseBody(response: Response): Promise<unknown> {
+  const contentType = response.headers.get('content-type') || '';
+
+  if (contentType.includes('application/json')) {
+    return response.json();
+  }
+
+  const text = await response.text();
+  return text;
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<ApiResponse<T>> {
+  const url = joinUrl(appConfig.apiBaseUrl, path);
+  const headers = new Headers(init.headers);
+
+  if (init.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  const response = await fetch(url, {
+    ...init,
+    headers,
+  });
+
+  const body = await parseResponseBody(response);
+
+  if (!response.ok) {
+    const message =
+      (body as { error?: { message?: string }; message?: string })?.error?.message ||
+      (body as { message?: string })?.message ||
+      `Request failed with status ${response.status}`;
+
+    throw new ApiError(message, {
+      data: body,
+      status: response.status,
+      headers: response.headers,
+    });
+  }
+
+  return {
+    data: body as T,
+    status: response.status,
+    headers: response.headers,
+  };
+}
+
+const api = {
+  get: <T>(path: string) => request<T>(path),
+  post: <T>(path: string, data?: unknown) =>
+    request<T>(path, {
+      method: 'POST',
+      body: data === undefined ? undefined : JSON.stringify(data),
+    }),
+  patch: <T>(path: string, data?: unknown) =>
+    request<T>(path, {
+      method: 'PATCH',
+      body: data === undefined ? undefined : JSON.stringify(data),
+    }),
+  delete: <T>(path: string) =>
+    request<T>(path, {
+      method: 'DELETE',
+    }),
+};
 
 // Types
 export interface Project {
