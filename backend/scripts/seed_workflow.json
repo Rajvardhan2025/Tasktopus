@@ -1,0 +1,53 @@
+{
+  "_id": "workflow_default",
+  "name": "Standard Software Development Workflow",
+  "project_id": "",
+  "statuses": ["to_do", "in_progress", "in_review", "done"],
+  "transitions": [
+    {
+      "from": "to_do",
+      "to": "in_progress",
+      "conditions": [],
+      "actions": []
+    },
+    {
+      "from": "in_progress",
+      "to": "in_review",
+      "conditions": [
+        {
+          "field": "assignee_id",
+          "operator": "not_empty",
+          "value": ""
+        }
+      ],
+      "actions": [
+        {
+          "type": "notify",
+          "params": {
+            "message": "Issue moved to review"
+          }
+        }
+      ]
+    },
+    {
+      "from": "in_review",
+      "to": "done",
+      "conditions": [],
+      "actions": []
+    },
+    {
+      "from": "in_review",
+      "to": "in_progress",
+      "conditions": [],
+      "actions": []
+    },
+    {
+      "from": "to_do",
+      "to": "done",
+      "conditions": [],
+      "actions": []
+    }
+  ],
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-01T00:00:00Z"
+}
