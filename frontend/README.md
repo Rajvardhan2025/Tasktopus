@@ -4,13 +4,18 @@ Modern, responsive project management UI built with React, Vite, TypeScript, Tai
 
 ## Features
 
+- **Landing Page**: Beautiful hero section with clear CTAs and feature showcase
 - **Kanban Board**: Drag-and-drop issue management across status columns
 - **Real-Time Updates**: WebSocket integration for live collaboration
 - **Project Management**: Create and manage multiple projects
+- **Sprint Management**: Plan and track sprints with velocity metrics
+- **Workflow Customization**: Design workflows that match your team's process
 - **Issue Tracking**: Full CRUD operations with detailed issue views
 - **Comments & Activity**: Threaded discussions and activity timeline
-- **Responsive Design**: Works seamlessly on desktop and mobile
-- **Modern UI**: Beautiful components from shadcn/ui
+- **Search & Filter**: Quick search across issues
+- **Responsive Design**: Optimized for desktop, tablet, and mobile
+- **Modern UI**: Beautiful components from shadcn/ui with smooth animations
+- **Accessibility**: Keyboard navigation and screen reader support
 
 ## Tech Stack
 
@@ -63,8 +68,12 @@ frontend/
 │   │   ├── KanbanBoard.tsx  # Main board view
 │   │   ├── IssueDialog.tsx  # Issue detail modal
 │   │   ├── CreateIssueDialog.tsx
-│   │   └── Layout.tsx       # App layout
+│   │   ├── SprintManagement.tsx
+│   │   ├── WorkflowManagement.tsx
+│   │   ├── SearchBar.tsx
+│   │   └── Layout.tsx       # App layout with navigation
 │   ├── pages/
+│   │   ├── Landing.tsx      # Landing page with hero section
 │   │   ├── ProjectList.tsx  # Projects overview
 │   │   └── ProjectBoard.tsx # Project board view
 │   ├── lib/
@@ -73,7 +82,9 @@ frontend/
 │   │   └── utils.ts         # Utility functions
 │   ├── App.tsx              # Main app component
 │   ├── main.tsx             # Entry point
-│   └── index.css            # Global styles
+│   └── index.css            # Global styles & animations
+├── UX_IMPROVEMENTS.md       # UX documentation
+├── DESIGN_SYSTEM.md         # Design system reference
 ├── index.html
 ├── vite.config.ts
 ├── tailwind.config.js
@@ -81,6 +92,15 @@ frontend/
 ```
 
 ## Features Overview
+
+### Landing Page
+
+- Hero section with compelling value proposition
+- Feature showcase highlighting key capabilities
+- Clear call-to-action buttons
+- Smooth scroll navigation
+- Responsive design with animations
+- Direct path to project management
 
 ### Kanban Board
 

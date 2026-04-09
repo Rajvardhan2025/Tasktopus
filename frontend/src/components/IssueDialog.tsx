@@ -51,6 +51,36 @@ export function IssueDialog({ issue, open, onClose }: IssueDialogProps) {
   const members = membersData?.data?.data || [];
 
   const assigneeName = members.find((member) => member.id === currentIssue.assignee_id)?.display_name;
+  
+  // Helper function to get user display name
+  const getUserName = (userId: string) => {
+    const member = members.find((m) => m.id === userId);
+    return member?.display_name || 'Unknown User';
+  };
+
+  // Helper function to format activity changes
+  const formatChanges = (changes: Record<string, any>) => {
+    const entries = Object.entries(changes);
+    return entries.map(([field, change]: [string, any]) => {
+      const oldValue = change.old || 'None';
+      const newValue = change.new || 'None';
+      
+      // Format field name (convert snake_case to Title Case)
+      const fieldName = field
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+      
+      // Special handling for assignee_id
+      if (field === 'assignee_id') {
+        const oldName = oldValue ? getUserName(oldValue) : 'Unassigned';
+        const newName = newValue ? getUserName(newValue) : 'Unassigned';
+        return `${fieldName}: ${oldName} → ${newName}`;
+      }
+      
+      return `${fieldName}: ${oldValue} → ${newValue}`;
+    }).join(', ');
+  };
 
   const { data: commentsData } = useQuery({
     queryKey: ['comments', issue.id],
@@ -68,6 +98,7 @@ export function IssueDialog({ issue, open, onClose }: IssueDialogProps) {
     mutationFn: () => commentsApi.create(issue.id, commentText),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['comments', issue.id] });
+      queryClient.invalidateQueries({ queryKey: ['activity', issue.id] });
       setCommentText('');
     },
   });
@@ -83,8 +114,12 @@ export function IssueDialog({ issue, open, onClose }: IssueDialogProps) {
         version: currentIssue.version,
       }),
     onSuccess: () => {
+      // Invalidate all related queries to refresh UI
       queryClient.invalidateQueries({ queryKey: ['issues', issue.project_id] });
+      queryClient.invalidateQueries({ queryKey: ['issue', issue.id] });
+      queryClient.invalidateQueries({ queryKey: ['activity', issue.id] });
       setIsEditing(false);
+      onClose(); // Close modal after successful save
     },
   });
 
@@ -217,7 +252,7 @@ export function IssueDialog({ issue, open, onClose }: IssueDialogProps) {
                   ))}
                 </select>
               ) : (
-                <span className="ml-2">{assigneeName || currentIssue.assignee_id || 'Unassigned'}</span>
+                <span className="ml-2">{assigneeName || 'Unassigned'}</span>
               )}
             </div>
             {currentIssue.labels.length > 0 && (
@@ -274,41 +309,55 @@ export function IssueDialog({ issue, open, onClose }: IssueDialogProps) {
                 </div>
 
                 <div className="space-y-3">
-                  {comments.map((comment) => (
-                    <Card key={comment.id} className="p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <span className="font-semibold text-sm">{comment.user_id}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
-                        </span>
-                      </div>
-                      <p className="text-sm whitespace-pre-wrap">{comment.content}</p>
-                    </Card>
-                  ))}
+                  {comments.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">
+                      No comments yet. Be the first to comment!
+                    </p>
+                  ) : (
+                    comments.map((comment) => (
+                      <Card key={comment.id} className="p-4">
+                        <div className="flex items-start justify-between mb-2">
+                          <span className="font-semibold text-sm">{getUserName(comment.user_id)}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
+                          </span>
+                        </div>
+                        <p className="text-sm whitespace-pre-wrap">{comment.content}</p>
+                      </Card>
+                    ))
+                  )}
                 </div>
               </div>
             )}
 
             {activeTab === 'activity' && (
               <div className="space-y-3">
-                {activities.map((activity) => (
-                  <Card key={activity.id} className="p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <span className="font-semibold text-sm">{activity.user_id}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
-                      </span>
-                    </div>
-                    <p className="text-sm">
-                      <span className="font-medium">{activity.action}</span>
-                      {activity.changes && (
-                        <span className="text-muted-foreground ml-2">
-                          {JSON.stringify(activity.changes)}
+                {activities.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    No activity yet.
+                  </p>
+                ) : (
+                  activities.map((activity) => (
+                    <Card key={activity.id} className="p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <span className="font-semibold text-sm">{getUserName(activity.user_id)}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
                         </span>
-                      )}
-                    </p>
-                  </Card>
-                ))}
+                      </div>
+                      <p className="text-sm">
+                        <span className="font-medium capitalize">
+                          {activity.action.replace(/_/g, ' ')}
+                        </span>
+                        {activity.changes && (
+                          <span className="text-muted-foreground ml-2">
+                            {formatChanges(activity.changes)}
+                          </span>
+                        )}
+                      </p>
+                    </Card>
+                  ))
+                )}
               </div>
             )}
           </div>

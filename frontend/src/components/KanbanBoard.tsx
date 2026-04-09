@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { issuesApi } from '@/lib/api';
+import { issuesApi, projectsApi } from '@/lib/api';
 import type { Issue } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -62,11 +62,27 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
     },
   });
 
+  const { data: membersData } = useQuery({
+    queryKey: ['project-members', projectId],
+    queryFn: () => projectsApi.members(projectId),
+  });
+
+  const members = membersData?.data?.data || [];
+
+  // Helper function to get user display name
+  const getUserName = (userId: string | undefined) => {
+    if (!userId) return 'Unassigned';
+    const member = members.find((m) => m.id === userId);
+    return member?.display_name || 'Unknown User';
+  };
+
   const transitionMutation = useMutation({
     mutationFn: ({ issueId, toStatus, version }: { issueId: string; toStatus: string; version: number }) =>
       issuesApi.transition(issueId, toStatus, version),
     onSuccess: () => {
+      // Invalidate all related queries for immediate UI update
       queryClient.invalidateQueries({ queryKey: ['issues', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['sprints', projectId] });
       toast({
         title: 'Success',
         description: 'Issue status updated successfully',
@@ -186,7 +202,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
                         )}
                       </div>
                       <div className="mt-1 text-xs text-muted-foreground">
-                        Assignee: {issue.assignee_id || 'Unassigned'}
+                        Assignee: {getUserName(issue.assignee_id)}
                       </div>
                       {issue.labels.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">

@@ -50,6 +50,7 @@ export function CreateIssueDialog({ projectId, open, onClose }: CreateIssueDialo
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['issues', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['sprints', projectId] });
       handleClose();
     },
   });

@@ -40,11 +40,14 @@ project-management/
 
 ### Frontend
 - Modern React with TypeScript
+- Beautiful landing page with hero section
+- Enhanced navigation with mobile support
 - Drag-and-drop Kanban board
 - Real-time collaboration via WebSocket
-- shadcn/ui components
-- Responsive design
+- shadcn/ui components with smooth animations
+- Fully responsive design (mobile, tablet, desktop)
 - TanStack Query for data management
+- Accessibility-first approach
 
 ## Quick Start
 
@@ -90,6 +93,7 @@ Navigate to `http://localhost:5173` and start creating projects!
 See individual README files:
 - [Backend Setup](./backend/README.md)
 - [Frontend Setup](./frontend/README.md)
+- [UX Improvements](./UX_IMPLEMENTATION_SUMMARY.md) - New landing page and UX enhancements
 
 ## API Documentation
 

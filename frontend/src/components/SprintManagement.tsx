@@ -56,6 +56,7 @@ export function SprintManagement({ projectId }: SprintManagementProps) {
         variant: 'success',
       });
       queryClient.invalidateQueries({ queryKey: ['sprints', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['issues', projectId] });
       handleCloseCreate();
     },
     onError: (error: any) => {
@@ -77,6 +78,7 @@ export function SprintManagement({ projectId }: SprintManagementProps) {
         variant: 'success',
       });
       queryClient.invalidateQueries({ queryKey: ['sprints', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['issues', projectId] });
     },
     onError: (error: any) => {
       toast({

@@ -46,6 +46,7 @@ export function ProjectMembersManager({ projectId }: ProjectMembersManagerProps)
         mutationFn: (userId: string) => projectsApi.addMember(projectId, userId),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['project-members', projectId] });
+            queryClient.invalidateQueries({ queryKey: ['issues', projectId] });
             setSelectedUserId('');
             toast({ title: 'Member added', variant: 'success' });
         },
@@ -62,6 +63,7 @@ export function ProjectMembersManager({ projectId }: ProjectMembersManagerProps)
         mutationFn: (userId: string) => projectsApi.removeMember(projectId, userId),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['project-members', projectId] });
+            queryClient.invalidateQueries({ queryKey: ['issues', projectId] });
             toast({ title: 'Member removed', variant: 'success' });
         },
         onError: (error: any) => {
@@ -77,6 +79,7 @@ export function ProjectMembersManager({ projectId }: ProjectMembersManagerProps)
         mutationFn: () => usersApi.create({ email: newEmail, display_name: newName }),
         onSuccess: (response) => {
             queryClient.invalidateQueries({ queryKey: ['users'] });
+            queryClient.invalidateQueries({ queryKey: ['project-members', projectId] });
             setSelectedUserId(response.data.data.id);
             setNewName('');
             setNewEmail('');
