@@ -136,6 +136,21 @@ export default function Login() {
 
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  {isLogin && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFormData({
+                          email: 'user@gmail.com',
+                          password: 'password1',
+                          display_name: '',
+                        })
+                      }
+                      className="w-full text-sm text-blue-600 hover:text-blue-700 underline"
+                    >
+                      Use demo account
+                    </button>
+                  )}
                   <div className="space-y-2">
                     <Label htmlFor="email" className="text-slate-700">
                       Email
