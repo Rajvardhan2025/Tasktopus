@@ -1,7 +1,9 @@
 import api from './api';
+import { toast } from '@/hooks/use-toast';
 
 const TOKEN_KEY = 'auth_token';
 const USER_KEY = 'auth_user';
+const SERVER_WARMUP_THRESHOLD = 3000; // 3 seconds
 
 export interface User {
   id: string;
@@ -67,20 +69,75 @@ class AuthService {
     localStorage.removeItem(USER_KEY);
   }
 
+  // Helper to handle slow requests with user feedback
+  private async handleAuthRequest<T>(
+    requestFn: () => Promise<T>,
+    isFirstRequest: boolean = false
+  ): Promise<T> {
+    let warmupToastId: string | undefined;
+    
+    // Set a timer to show warmup message if request takes too long
+    const warmupTimer = setTimeout(() => {
+      if (isFirstRequest) {
+        const result = toast({
+          title: '🚀 Server is waking up...',
+          description: 'This may take 30-60 seconds on first request. Please wait.',
+          duration: 60000, // Show for 60 seconds
+        });
+        warmupToastId = result.id;
+      }
+    }, SERVER_WARMUP_THRESHOLD);
+
+    try {
+      const result = await requestFn();
+      clearTimeout(warmupTimer);
+      
+      // Dismiss warmup toast if it was shown
+      if (warmupToastId) {
+        toast({ id: warmupToastId, title: '', description: '', duration: 0 });
+      }
+      
+      return result;
+    } catch (error) {
+      clearTimeout(warmupTimer);
+      
+      // Dismiss warmup toast if it was shown
+      if (warmupToastId) {
+        toast({ id: warmupToastId, title: '', description: '', duration: 0 });
+      }
+      
+      throw error;
+    }
+  }
+
+  // Check if this might be the first request (server cold start)
+  private isLikelyFirstRequest(): boolean {
+    // If no token exists, this is likely a first-time user or fresh session
+    return !this.getToken();
+  }
+
   // Register new user
   async register(data: RegisterData): Promise<AuthResponse> {
-    const response = await api.post<{ data: AuthResponse }>('/auth/register', data);
-    const authData = response.data.data;
-    this.setAuthData(authData.token, authData.user);
-    return authData;
+    const isFirstRequest = this.isLikelyFirstRequest();
+    
+    return this.handleAuthRequest(async () => {
+      const response = await api.post<{ data: AuthResponse }>('/auth/register', data);
+      const authData = response.data.data;
+      this.setAuthData(authData.token, authData.user);
+      return authData;
+    }, isFirstRequest);
   }
 
   // Login user
   async login(data: LoginData): Promise<AuthResponse> {
-    const response = await api.post<{ data: AuthResponse }>('/auth/login', data);
-    const authData = response.data.data;
-    this.setAuthData(authData.token, authData.user);
-    return authData;
+    const isFirstRequest = this.isLikelyFirstRequest();
+    
+    return this.handleAuthRequest(async () => {
+      const response = await api.post<{ data: AuthResponse }>('/auth/login', data);
+      const authData = response.data.data;
+      this.setAuthData(authData.token, authData.user);
+      return authData;
+    }, isFirstRequest);
   }
 
   // Logout user
