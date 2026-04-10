@@ -7,10 +7,12 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/yourusername/project-management/config"
+	"github.com/yourusername/project-management/middleware"
 	"github.com/yourusername/project-management/provider"
 )
 
-func Setup(app *fiber.App, p *provider.Provider) {
+func Setup(app *fiber.App, p *provider.Provider, cfg *config.Config) {
 	allowOrigins := "*"
 	if len(p.Config.CORS.Origins) > 0 {
 		allowOrigins = strings.Join(p.Config.CORS.Origins, ",")
@@ -32,6 +34,20 @@ func Setup(app *fiber.App, p *provider.Provider) {
 
 	// API routes
 	api := app.Group("/api")
+
+	// Auth routes (public - no auth middleware)
+	authHandler := NewAuthHandler(p)
+	auth := api.Group("/auth")
+	auth.Post("/register", authHandler.Register)
+	auth.Post("/login", authHandler.Login)
+
+	// Protected auth routes
+	authProtected := auth.Group("", middleware.Auth(cfg))
+	authProtected.Get("/me", authHandler.GetMe)
+	authProtected.Post("/change-password", authHandler.ChangePassword)
+
+	// Apply auth middleware to all other routes
+	api.Use(middleware.Auth(cfg))
 
 	// Initialize handlers
 	projectHandler := NewProjectHandler(p)

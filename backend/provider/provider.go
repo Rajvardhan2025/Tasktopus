@@ -24,6 +24,7 @@ type Provider struct {
 	NotificationStore *store.NotificationStore
 
 	// Services
+	AuthService         *service.AuthService
 	IssueService        *service.IssueService
 	WorkflowService     *service.WorkflowService
 	SprintService       *service.SprintService
@@ -55,6 +56,7 @@ func New(cfg *config.Config) (*Provider, error) {
 	notificationStore := store.NewNotificationStore(db.Database)
 
 	// Initialize services
+	authService := service.NewAuthService(userStore, cfg)
 	wsService := service.NewWebSocketService()
 	notificationService := service.NewNotificationService(notificationStore)
 	workflowService := service.NewWorkflowService(workflowStore, issueStore, notificationService)
@@ -81,6 +83,7 @@ func New(cfg *config.Config) (*Provider, error) {
 		ActivityStore:       activityStore,
 		WorkflowStore:       workflowStore,
 		NotificationStore:   notificationStore,
+		AuthService:         authService,
 		IssueService:        issueService,
 		WorkflowService:     workflowService,
 		SprintService:       sprintService,

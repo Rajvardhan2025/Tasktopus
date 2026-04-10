@@ -48,7 +48,7 @@ func (h *UserHandler) Create(c *fiber.Ctx) error {
 		BaseModel:   models.BaseModel{ID: uuid.New().String()},
 		Email:       req.Email,
 		DisplayName: req.DisplayName,
-		AvatarURL:   req.AvatarURL,
+		IsActive:    true,
 	}
 
 	if err := h.provider.UserStore.Create(c.Context(), user); err != nil {

@@ -53,6 +53,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<ApiResp
     headers.set('Content-Type', 'application/json');
   }
 
+  // Add auth token if available
+  const token = localStorage.getItem('auth_token');
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
   const response = await fetch(url, {
     ...init,
     headers,
@@ -65,6 +71,15 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<ApiResp
       (body as { error?: { message?: string }; message?: string })?.error?.message ||
       (body as { message?: string })?.message ||
       `Request failed with status ${response.status}`;
+
+    // Handle 401 Unauthorized - redirect to login
+    if (response.status === 401) {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.href = '/';
+      }
+    }
 
     throw new ApiError(message, {
       data: body,
