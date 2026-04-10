@@ -1,260 +1,268 @@
-# Project Management Platform
+# Project Management Application
 
-A complete, production-ready project management system with a Go backend and React frontend.
-
-## Overview
-
-This is a full-stack project management platform that enables engineering teams to plan, track, and deliver software collaboratively. It features real-time updates, flexible workflows, sprint management, and a modern Kanban board interface.
-
-## Architecture
-
-```
-project-management/
-├── backend/          # Go + Fiber + MongoDB
-│   ├── main.go
-│   ├── config/
-│   ├── provider/
-│   ├── service/
-│   ├── store/
-│   ├── router/
-│   └── models/
-└── frontend/         # React + Vite + TypeScript + Tailwind
-    ├── src/
-    │   ├── components/
-    │   ├── pages/
-    │   └── lib/
-    └── package.json
-```
+A full-stack project management application with secure authentication, built with Go, React, and MongoDB.
 
 ## Features
 
-### Backend
-- RESTful API with Fiber framework
-- MongoDB for flexible data storage
-- WebSocket for real-time updates
-- Optimistic concurrency control
-- Workflow engine with validation
-- Sprint management
-- Activity logging and audit trail
-- Full-text search
+- 🔐 Secure JWT-based authentication with bcrypt password hashing
+- 📱 Fully responsive design (375px mobile to 1280px+ desktop)
+- 🌓 Dark mode with persistent theme preference
+- 🐳 Single Docker image for frontend + backend
+- 📊 Kanban board with drag-and-drop
+- 🏃 Sprint management
+- 💬 Comments and activity tracking
+- 🔔 Real-time notifications via WebSocket
+- 🔍 Advanced search functionality
 
-### Frontend
-- Modern React with TypeScript
-- Beautiful landing page with hero section
-- Enhanced navigation with mobile support
-- Drag-and-drop Kanban board
-- Real-time collaboration via WebSocket
-- shadcn/ui components with smooth animations
-- Fully responsive design (mobile, tablet, desktop)
-- TanStack Query for data management
-- Accessibility-first approach
-
-## Quick Start
+## Quick Start with Docker
 
 ### Prerequisites
 
-- Go 1.21+
-- Node.js 18+
-- MongoDB 5.0+
+- Docker and Docker Compose installed
+- No other services running on ports 8080 or 27017
 
-### 1. Start MongoDB
+### Setup
 
-```bash
-docker run -d -p 27017:27017 --name mongodb mongo:latest
-```
+1. Clone the repository
+2. Copy environment file:
+   ```bash
+   cp .env.example .env
+   ```
+3. Start the entire stack:
+   ```bash
+   docker compose up
+   ```
 
-### 2. Start Backend
+That's it! The application will be available at:
+- **Application**: http://localhost:8080 (frontend + backend in one)
+- **MongoDB**: localhost:27017
+
+### Architecture
+
+The Docker setup uses a single container that runs:
+- **Nginx** on port 8080 (serves frontend + proxies API requests)
+- **Go Backend** on internal port 8081
+- **MongoDB** in separate container
+
+This centralized approach means:
+- ✅ Single port to expose (8080)
+- ✅ No CORS issues (same origin)
+- ✅ Simpler deployment
+- ✅ Smaller resource footprint
+
+### Test Credentials
+
+The database is automatically seeded with test data:
+- **Email**: test@example.com
+- **Password**: testpass123
+
+The seed includes:
+- 1 test user
+- 1 demo project (DEMO)
+- 3 sample tasks with different statuses
+
+## Local Development
+
+### Backend (Go)
 
 ```bash
 cd backend
 cp .env.example .env
+# Update MONGO_URI if needed
 go mod download
 go run main.go
 ```
 
-Backend will run on `http://localhost:8080`
+Backend runs on http://localhost:8080
 
-### 3. Start Frontend
+### Frontend (React)
 
 ```bash
 cd frontend
+cp .env.example .env
 npm install
 npm run dev
 ```
 
-Frontend will run on `http://localhost:5173`
+Frontend runs on http://localhost:5173
 
-### 4. Open Browser
+## Environment Variables
 
-Navigate to `http://localhost:5173` and start creating projects!
+### Root `.env` (for Docker Compose)
+```env
+# MongoDB Configuration
+MONGO_ROOT_USER=admin
+MONGO_ROOT_PASSWORD=admin123
+MONGO_DATABASE=project_management
 
-## Detailed Setup
+# JWT Configuration (CHANGE THIS!)
+JWT_SECRET=your-secure-secret-key-here-min-32-chars
 
-See individual README files:
-- [Backend Setup](./backend/README.md)
-- [Frontend Setup](./frontend/README.md)
-- [UX Improvements](./UX_IMPLEMENTATION_SUMMARY.md) - New landing page and UX enhancements
+# Application Port
+APP_PORT=8080
+```
 
-## API Documentation
+### Backend `.env` (for local dev)
+```env
+PORT=8080
+MONGO_URI=mongodb://localhost:27017
+MONGO_DATABASE=project_management
+JWT_SECRET=your-secure-secret-key-here
+JWT_EXPIRY=24h
+CORS_ORIGINS=http://localhost:5173,http://localhost:3000
+```
 
-### Projects
-- `POST /api/projects` - Create project
+### Frontend `.env` (for local dev)
+```env
+VITE_BACKEND_URL=http://localhost:8080
+```
+
+## Security Features
+
+- Passwords hashed with bcrypt (cost factor 12)
+- JWT tokens with configurable expiration
+- CORS protection
+- Input validation on both frontend and backend
+- Password requirements (min 8 characters)
+- Secure HTTP-only authentication flow
+- Protected API routes with middleware
+
+## Tech Stack
+
+### Backend
+- Go 1.21
+- Fiber (web framework)
+- MongoDB
+- JWT authentication
+- bcrypt password hashing
+
+### Frontend
+- React 18
+- TypeScript
+- TailwindCSS
+- React Query
+- React Router
+- Shadcn/ui components
+
+### Infrastructure
+- Docker & Docker Compose
+- MongoDB 7
+- Nginx (reverse proxy)
+- Multi-stage Docker build
+
+## API Endpoints
+
+All endpoints are available at `http://localhost:8080/api`
+
+### Public
+- `POST /api/auth/register` - Create account
+- `POST /api/auth/login` - Login
+
+### Protected (requires JWT token)
+- `GET /api/auth/me` - Get current user
+- `POST /api/auth/change-password` - Change password
 - `GET /api/projects` - List projects
-- `GET /api/projects/:id` - Get project
-
-### Issues
-- `POST /api/projects/:id/issues` - Create issue
-- `GET /api/projects/:id/board` - Get board
-- `PATCH /api/issues/:id` - Update issue
-- `POST /api/issues/:id/transitions` - Change status
-
-### Real-Time
-- `WS /api/ws/:projectId` - WebSocket connection
-
-Full API documentation in [backend/README.md](./backend/README.md)
-
-## Development
-
-### Backend Development
-
-```bash
-cd backend
-make run          # Run with hot reload
-make test         # Run tests
-make build        # Build binary
-```
-
-### Frontend Development
-
-```bash
-cd frontend
-npm run dev       # Development server
-npm run build     # Production build
-npm run lint      # Lint code
-```
+- `POST /api/projects` - Create project
+- `GET /api/projects/:id/board` - Get project board
+- And more...
 
 ## Production Deployment
 
+1. Update `.env` with strong secrets:
+   ```bash
+   # Generate a strong JWT secret
+   openssl rand -base64 32
+   ```
+
+2. Build and run:
+   ```bash
+   docker compose up -d
+   ```
+
+3. The app runs on a single port (8080) making it easy to:
+   - Add SSL with Let's Encrypt
+   - Put behind a reverse proxy
+   - Deploy to any cloud provider
+
+4. Consider adding:
+   - SSL certificates (Let's Encrypt)
+   - Rate limiting
+   - Monitoring and logging
+   - Backup strategy for MongoDB
+
+## Development Commands
+
 ### Backend
-
 ```bash
 cd backend
-make build-prod
-# Deploy binary to your server
-```
-
-Or use Docker:
-
-```bash
-cd backend
-docker build -t pm-backend .
-docker run -p 8080:8080 --env-file .env pm-backend
+go test ./...        # Run tests
+go build -o bin/server  # Build
+go fmt ./...         # Format code
 ```
 
 ### Frontend
-
 ```bash
 cd frontend
-npm run build
-# Deploy dist/ folder to Vercel, Netlify, or S3
+npm run dev          # Development server
+npm run build        # Production build
+npm run preview      # Preview production build
+npm run lint         # Lint code
 ```
 
-## Key Technologies
-
-**Backend:**
-- Go 1.21
-- Fiber v2 (HTTP framework)
-- MongoDB (database)
-- WebSocket (real-time)
-
-**Frontend:**
-- React 18
-- TypeScript
-- Vite (build tool)
-- Tailwind CSS
-- shadcn/ui components
-- TanStack Query
-
-## Project Structure
-
-### Backend Layers
-
-```
-Router → Service → Store → MongoDB
-```
-
-- **Router**: HTTP handlers
-- **Service**: Business logic
-- **Store**: Data access
-- **Provider**: Dependency injection
-
-### Frontend Architecture
-
-```
-Pages → Components → API → Backend
-```
-
-- **Pages**: Route components
-- **Components**: Reusable UI
-- **API**: Backend integration
-- **WebSocket**: Real-time updates
-
-## Features Showcase
-
-### Kanban Board
-- Drag-and-drop issues between columns
-- Real-time updates across all users
-- Visual priority and story points
-- Label management
-
-### Issue Management
-- Create issues with type, priority, story points
-- Detailed issue view with comments
-- Activity timeline
-- @mentions in comments
-
-### Sprint Management
-- Create and manage sprints
-- Start/complete sprints
-- Velocity tracking
-- Carry-over incomplete items
-
-### Real-Time Collaboration
-- WebSocket connection
-- Live issue updates
-- Presence tracking
-- Automatic reconnection
-
-## Testing
-
-### Backend Tests
-
+### Docker
 ```bash
-cd backend
-go test ./...
+docker compose up           # Start all services
+docker compose up -d        # Start in background
+docker compose down         # Stop all services
+docker compose logs -f      # View logs
+docker compose logs -f app  # View app logs only
+docker compose restart app  # Restart app
 ```
 
-### Frontend Tests
+## Responsive Design
 
+The application is fully responsive and tested at:
+- Mobile: 375px width
+- Tablet: 768px width
+- Desktop: 1280px+ width
+
+All layouts adapt gracefully with no broken elements or console errors.
+
+## Dark Mode
+
+Dark mode is implemented with:
+- System preference detection
+- Manual toggle in navigation
+- Persistent preference in localStorage
+- Smooth transitions between themes
+
+## Troubleshooting
+
+### Port already in use
 ```bash
-cd frontend
-npm run test
+# Check what's using port 8080
+lsof -i :8080
+
+# Or change the port in .env
+APP_PORT=3000
 ```
 
-## Contributing
+### MongoDB connection issues
+```bash
+# Check MongoDB is running
+docker compose ps
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+# View MongoDB logs
+docker compose logs mongodb
+```
+
+### Frontend not loading
+```bash
+# Rebuild the image
+docker compose build --no-cache app
+docker compose up
+```
 
 ## License
 
 MIT
-
-## Support
-
-For issues and questions:
-- Backend: See [backend/README.md](./backend/README.md)
-- Frontend: See [frontend/README.md](./frontend/README.md)
-- Architecture: See [backend/ARCHITECTURE.md](./backend/ARCHITECTURE.md)

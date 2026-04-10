@@ -8,13 +8,18 @@ import (
 	"syscall"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/joho/godotenv"
 	"github.com/yourusername/project-management/config"
-	"github.com/yourusername/project-management/middleware"
 	"github.com/yourusername/project-management/provider"
 	"github.com/yourusername/project-management/router"
 )
 
 func main() {
+	// Load .env file
+	if err := godotenv.Load(); err != nil {
+		log.Println("Warning: .env file not found, using environment variables")
+	}
+
 	// Load configuration
 	cfg := config.Load()
 
@@ -42,11 +47,8 @@ func main() {
 		},
 	})
 
-	// Apply auth middleware globally
-	app.Use(middleware.Auth(cfg))
-
-	// Setup routes
-	router.Setup(app, p)
+	// Setup routes (auth middleware applied selectively in router)
+	router.Setup(app, p, cfg)
 
 	// Graceful shutdown
 	go func() {

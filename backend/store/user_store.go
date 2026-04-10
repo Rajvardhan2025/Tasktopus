@@ -72,3 +72,14 @@ func (s *UserStore) List(ctx context.Context) ([]*models.User, error) {
 
 	return users, nil
 }
+
+func (s *UserStore) UpdatePassword(ctx context.Context, userID string, passwordHash string) error {
+	update := bson.M{
+		"$set": bson.M{
+			"password_hash": passwordHash,
+			"updated_at":    time.Now(),
+		},
+	}
+	_, err := s.collection.UpdateOne(ctx, bson.M{"_id": userID}, update)
+	return err
+}

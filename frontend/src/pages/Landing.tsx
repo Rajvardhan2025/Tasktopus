@@ -15,38 +15,6 @@ import {
 export function Landing() {
   const navigate = useNavigate();
 
-  const features = [
-    {
-      icon: LayoutDashboard,
-      title: 'Kanban Boards',
-      description: 'Visualize your workflow with intuitive drag-and-drop boards'
-    },
-    {
-      icon: Zap,
-      title: 'Sprint Management',
-      description: 'Plan and track sprints with velocity metrics and burndown charts'
-    },
-    {
-      icon: Users,
-      title: 'Team Collaboration',
-      description: 'Real-time updates and seamless team communication'
-    },
-    {
-      icon: GitBranch,
-      title: 'Custom Workflows',
-      description: 'Design workflows that match your team\'s process'
-    },
-    {
-      icon: Bell,
-      title: 'Smart Notifications',
-      description: 'Stay informed with intelligent activity tracking'
-    },
-    {
-      icon: TrendingUp,
-      title: 'Analytics',
-      description: 'Track progress and optimize team performance'
-    }
-  ];
 
   return (
     <div className="min-h-screen">
